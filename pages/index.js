@@ -1,32 +1,61 @@
 import { useState } from "react";
 
 export default function Home() {
-  const [walletAddress, setWalletAddress] = useState("");
-  const [message, setMessage] = useState("");
-  const [response, setResponse] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [walletAddress, setWalletAddress] =
+    useState("");
 
-  const [walletValid, setWalletValid] = useState(null);
-  const [walletData, setWalletData] = useState(null);
-  const [walletLoading, setWalletLoading] = useState(false);
-  const [walletError, setWalletError] = useState("");
+  const [message, setMessage] =
+    useState("");
 
-  const [transactions, setTransactions] = useState([]);
-  const [transactionLoading, setTransactionLoading] = useState(false);
-  const [transactionError, setTransactionError] = useState("");
+  const [response, setResponse] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [walletValid, setWalletValid] =
+    useState(null);
+
+  const [walletData, setWalletData] =
+    useState(null);
+
+  const [walletLoading, setWalletLoading] =
+    useState(false);
+
+  const [walletError, setWalletError] =
+    useState("");
+
+  const [transactions, setTransactions] =
+    useState([]);
+
+  const [transactionError, setTransactionError] =
+    useState("");
+
+  // =====================================================
+  // VALIDATE WALLET
+  // =====================================================
 
   const validateWallet = (address) => {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+    return /^0x[a-fA-F0-9]{40}$/.test(
+      address
+    );
   };
 
+  // =====================================================
+  // WALLET INPUT
+  // =====================================================
+
   const handleWalletChange = (e) => {
-    const value = e.target.value;
+    const value =
+      e.target.value.trim();
 
     setWalletAddress(value);
 
-    // Clear previous wallet data when address changes
     setWalletData(null);
     setTransactions([]);
+
+    setResponse("");
+
     setWalletError("");
     setTransactionError("");
 
@@ -35,148 +64,239 @@ export default function Home() {
       return;
     }
 
-    setWalletValid(validateWallet(value));
+    setWalletValid(
+      validateWallet(value)
+    );
   };
+
+  // =====================================================
+  // ANALYZE WALLET
+  // =====================================================
 
   const analyzeWallet = async () => {
     if (!walletValid) {
-      setWalletError("Please enter a valid Ethereum wallet address.");
+      setWalletError(
+        "Please enter a valid Ethereum wallet address."
+      );
       return;
     }
 
     setWalletLoading(true);
-    setTransactionLoading(true);
 
     setWalletError("");
     setTransactionError("");
+
     setWalletData(null);
     setTransactions([]);
 
+    setResponse("");
+
     try {
-      // --------------------------------
-      // 1. Fetch wallet information
-      // --------------------------------
+      const walletRes =
+        await fetch(
+          "/api/wallet",
+          {
+            method: "POST",
 
-      const walletRes = await fetch("/api/wallet", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          address: walletAddress,
-        }),
-      });
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-      const walletResult = await walletRes.json();
+            body: JSON.stringify({
+              address:
+                walletAddress,
+            }),
+          }
+        );
+
+      const walletResult =
+        await walletRes.json();
 
       if (!walletRes.ok) {
         throw new Error(
-          walletResult.error || "Failed to fetch wallet data"
+          walletResult.error ||
+            "Failed to fetch wallet data"
         );
       }
 
-      setWalletData(walletResult);
+      setWalletData(
+        walletResult
+      );
 
-      // --------------------------------
-      // 2. Fetch transaction activity
-      // --------------------------------
-
-      const transactionRes = await fetch("/api/transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          address: walletAddress,
-        }),
-      });
-
-      const transactionResult = await transactionRes.json();
-
-      if (!transactionRes.ok) {
-        throw new Error(
-          transactionResult.error ||
-            "Failed to fetch transaction activity"
-        );
-      }
-
-      setTransactions(transactionResult.transactions || []);
+      // IMPORTANT:
+      // Transactions already come from /api/wallet.
+      setTransactions(
+        walletResult.transactions ||
+          []
+      );
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Wallet analysis error:",
+        error
+      );
 
-      if (!walletData) {
-        setWalletError(error.message);
-      } else {
-        setTransactionError(error.message);
-      }
+      setWalletError(
+        error.message ||
+          "Failed to analyze wallet"
+      );
     } finally {
       setWalletLoading(false);
-      setTransactionLoading(false);
     }
   };
 
+  // =====================================================
+  // ASK AI
+  // =====================================================
+
   const askAI = async () => {
-    if (!message.trim()) return;
+    if (!message.trim()) {
+      return;
+    }
+
+    if (!walletData) {
+      setResponse(
+        "Please analyze a wallet first so the AI can analyze its on-chain data."
+      );
+      return;
+    }
 
     setLoading(true);
     setResponse("");
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message,
-        }),
-      });
+      const res =
+        await fetch(
+          "/api/chat",
+          {
+            method: "POST",
 
-      const data = await res.json();
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              message:
+                message.trim(),
+
+              walletData,
+            }),
+          }
+        );
+
+      const data =
+        await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Something went wrong");
+        throw new Error(
+          data.error ||
+            "Something went wrong"
+        );
       }
 
-      setResponse(data.response);
+      setResponse(
+        data.response || ""
+      );
     } catch (error) {
-      setResponse(`Error: ${error.message}`);
+      console.error(
+        "AI error:",
+        error
+      );
+
+      setResponse(
+        `Error: ${
+          error.message ||
+          "Could not get AI response"
+        }`
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return "Unknown";
+  // =====================================================
+  // FORMAT DATE
+  // =====================================================
 
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const shortenAddress = (address) => {
-    if (!address) return "Unknown";
-
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const formatAmount = (value) => {
-    if (!value) return "0";
-
-    const number = Number(value);
-
-    if (Number.isNaN(number)) {
-      return value;
+  const formatDate = (
+    timestamp
+  ) => {
+    if (!timestamp) {
+      return "Unknown";
     }
 
-    return number.toLocaleString(undefined, {
-      maximumFractionDigits: 6,
-    });
+    const date =
+      new Date(timestamp);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return "Unknown";
+    }
+
+    return date.toLocaleString();
+  };
+
+  // =====================================================
+  // SHORT ADDRESS
+  // =====================================================
+
+  const shortenAddress = (
+    address
+  ) => {
+    if (!address) {
+      return "Unknown";
+    }
+
+    return `${address.slice(
+      0,
+      6
+    )}...${address.slice(-4)}`;
+  };
+
+  // =====================================================
+  // FORMAT AMOUNT
+  // =====================================================
+
+  const formatAmount = (
+    value
+  ) => {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return "0";
+    }
+
+    const number =
+      Number(value);
+
+    if (
+      Number.isNaN(number)
+    ) {
+      return String(value);
+    }
+
+    return number.toLocaleString(
+      undefined,
+      {
+        maximumFractionDigits: 6,
+      }
+    );
   };
 
   return (
     <main className="min-h-screen bg-black text-white p-6">
       <div className="max-w-5xl mx-auto py-16">
 
-        {/* Header */}
+        {/* ================================================= */}
+        {/* HEADER */}
+        {/* ================================================= */}
+
         <div className="mb-12">
           <p className="text-sm text-gray-500 mb-3">
             AI-POWERED BLOCKCHAIN INTELLIGENCE
@@ -187,13 +307,19 @@ export default function Home() {
           </h1>
 
           <p className="text-gray-400 mt-4 max-w-2xl">
-            Analyze blockchain wallets, understand their activity,
-            behavior, transactions and risk using AI.
+            Analyze blockchain wallets,
+            understand their activity,
+            behavior, transactions and
+            risk using AI.
           </p>
         </div>
 
-        {/* Wallet Input */}
+        {/* ================================================= */}
+        {/* WALLET INPUT */}
+        {/* ================================================= */}
+
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+
           <label className="block text-sm text-gray-400 mb-3">
             Wallet Address
           </label>
@@ -201,33 +327,47 @@ export default function Home() {
           <input
             type="text"
             value={walletAddress}
-            onChange={handleWalletChange}
+            onChange={
+              handleWalletChange
+            }
             placeholder="0x..."
             className="w-full bg-black border border-gray-700 rounded-xl px-4 py-4 text-white outline-none focus:border-gray-400"
           />
 
-          {walletValid === true && (
+          {walletValid ===
+            true && (
             <p className="text-green-400 text-sm mt-3">
               ✓ Valid EVM wallet address
             </p>
           )}
 
-          {walletValid === false && (
+          {walletValid ===
+            false && (
             <p className="text-red-400 text-sm mt-3">
               ✕ Invalid wallet address
             </p>
           )}
 
           <button
-            onClick={analyzeWallet}
-            disabled={!walletValid || walletLoading}
+            onClick={
+              analyzeWallet
+            }
+            disabled={
+              !walletValid ||
+              walletLoading
+            }
             className="mt-5 px-6 py-3 rounded-xl bg-white text-black font-medium disabled:opacity-40"
           >
-            {walletLoading ? "Analyzing..." : "Analyze Wallet"}
+            {walletLoading
+              ? "Analyzing..."
+              : "Analyze Wallet"}
           </button>
         </div>
 
-        {/* Wallet Error */}
+        {/* ================================================= */}
+        {/* WALLET ERROR */}
+        {/* ================================================= */}
+
         {walletError && (
           <div className="mt-6 rounded-xl border border-red-900 bg-red-950/30 p-4">
             <p className="text-red-400">
@@ -236,7 +376,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* Wallet Summary */}
+        {/* ================================================= */}
+        {/* WALLET SUMMARY */}
+        {/* ================================================= */}
+
         {walletData && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
 
@@ -273,62 +416,160 @@ export default function Home() {
           </div>
         )}
 
-        {/* Token Holdings */}
-        {walletData?.tokens && walletData.tokens.length > 0 && (
+        {/* ================================================= */}
+        {/* WALLET STATS */}
+        {/* ================================================= */}
+
+        {walletData?.stats && (
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-500 text-sm">
+                Transactions
+              </p>
+
+              <p className="text-xl font-semibold mt-2">
+                {
+                  walletData.stats
+                    .transactionCount
+                }
+              </p>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-500 text-sm">
+                Incoming
+              </p>
+
+              <p className="text-xl font-semibold mt-2 text-green-400">
+                {
+                  walletData.stats
+                    .incomingTransactions
+                }
+              </p>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-500 text-sm">
+                Outgoing
+              </p>
+
+              <p className="text-xl font-semibold mt-2 text-red-400">
+                {
+                  walletData.stats
+                    .outgoingTransactions
+                }
+              </p>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+              <p className="text-gray-500 text-sm">
+                ETH Transfers
+              </p>
+
+              <p className="text-xl font-semibold mt-2">
+                {
+                  walletData.stats
+                    .ethTransactionCount
+                }
+              </p>
+            </div>
+
+          </div>
+        )}
+
+        {/* ================================================= */}
+        {/* TOKEN HOLDINGS */}
+        {/* ================================================= */}
+
+        {walletData?.tokens &&
+          walletData.tokens.length >
+            0 && (
           <div className="mt-6 bg-gray-900 border border-gray-800 rounded-2xl p-6">
 
             <div className="flex items-center justify-between mb-6">
+
               <div>
                 <h2 className="text-2xl font-semibold">
                   Token Holdings
                 </h2>
 
                 <p className="text-gray-500 mt-1">
-                  ERC-20 tokens held by this wallet
+                  ERC-20 tokens held by
+                  this wallet
                 </p>
               </div>
 
               <p className="text-gray-500">
-                {walletData.tokens.length} tokens
+                {
+                  walletData.tokens
+                    .length
+                }{" "}
+                tokens
               </p>
+
             </div>
 
             <div className="space-y-4">
 
-              {walletData.tokens.map((token, index) => (
-                <div
-                  key={token.contractAddress || index}
-                  className="bg-black border border-gray-800 rounded-xl p-5 flex items-center justify-between"
-                >
+              {walletData.tokens.map(
+                (
+                  token,
+                  index
+                ) => (
+                  <div
+                    key={
+                      token.contractAddress ||
+                      token.address ||
+                      index
+                    }
+                    className="bg-black border border-gray-800 rounded-xl p-5 flex items-center justify-between"
+                  >
 
-                  <div>
-                    <p className="text-lg font-medium">
-                      {token.symbol || "Unknown"}
-                    </p>
+                    <div>
+                      <p className="text-lg font-medium">
+                        {
+                          token.symbol ||
+                          "Unknown"
+                        }
+                      </p>
 
-                    <p className="text-gray-500 text-sm mt-1">
-                      {token.name || "Unknown Token"}
-                    </p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        {
+                          token.name ||
+                          "Unknown Token"
+                        }
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+
+                      <p className="text-lg">
+                        {
+                          formatAmount(
+                            token.balance
+                          )
+                        }
+                      </p>
+
+                      <p className="text-gray-500 text-sm">
+                        Token Balance
+                      </p>
+
+                    </div>
+
                   </div>
-
-                  <div className="text-right">
-                    <p className="text-lg">
-                      {formatAmount(token.balance)}
-                    </p>
-
-                    <p className="text-gray-500 text-sm">
-                      Token Balance
-                    </p>
-                  </div>
-
-                </div>
-              ))}
+                )
+              )}
 
             </div>
           </div>
         )}
 
-        {/* Transaction Activity */}
+        {/* ================================================= */}
+        {/* TRANSACTION ACTIVITY */}
+        {/* ================================================= */}
+
         {walletData && (
           <div className="mt-6 bg-gray-900 border border-gray-800 rounded-2xl p-6">
 
@@ -340,53 +581,51 @@ export default function Home() {
                 </h2>
 
                 <p className="text-gray-500 mt-1">
-                  Recent on-chain activity for this wallet
+                  Recent on-chain activity
+                  available from the
+                  wallet data
                 </p>
               </div>
 
-              {!transactionLoading && (
-                <p className="text-gray-500">
-                  {transactions.length} transactions
-                </p>
-              )}
+              <p className="text-gray-500">
+                {
+                  transactions.length
+                }{" "}
+                transactions
+              </p>
 
             </div>
 
-            {/* Loading */}
-            {transactionLoading && (
-              <div className="py-10 text-center">
-                <p className="text-gray-400">
-                  Loading transaction activity...
-                </p>
-              </div>
-            )}
-
-            {/* Error */}
-            {!transactionLoading && transactionError && (
+            {transactionError && (
               <div className="rounded-xl border border-red-900 bg-red-950/30 p-4">
                 <p className="text-red-400">
-                  {transactionError}
+                  {
+                    transactionError
+                  }
                 </p>
               </div>
             )}
 
-            {/* Empty */}
-            {!transactionLoading &&
-              !transactionError &&
-              transactions.length === 0 && (
+            {!transactionError &&
+              transactions.length ===
+                0 && (
                 <div className="py-10 text-center">
                   <p className="text-gray-500">
-                    No transaction activity found.
+                    No transaction
+                    activity found.
                   </p>
                 </div>
               )}
 
-            {/* Transactions */}
-            {!transactionLoading &&
-              transactions.length > 0 && (
-                <div className="space-y-3">
+            {transactions.length >
+              0 && (
+              <div className="space-y-3">
 
-                  {transactions.map((tx, index) => (
+                {transactions.map(
+                  (
+                    tx,
+                    index
+                  ) => (
                     <div
                       key={`${tx.hash || "tx"}-${index}`}
                       className="bg-black border border-gray-800 rounded-xl p-5"
@@ -394,27 +633,35 @@ export default function Home() {
 
                       <div className="flex items-start justify-between gap-4">
 
-                        {/* Left */}
                         <div className="min-w-0">
 
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-wrap">
 
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                tx.direction === "IN"
+                                tx.direction ===
+                                "IN"
                                   ? "bg-green-950 text-green-400 border border-green-900"
                                   : "bg-red-950 text-red-400 border border-red-900"
                               }`}
                             >
-                              {tx.direction}
+                              {
+                                tx.direction
+                              }
                             </span>
 
                             <span className="text-gray-300">
-                              {tx.asset || "ETH"}
+                              {
+                                tx.asset ||
+                                "ETH"
+                              }
                             </span>
 
                             <span className="text-gray-500 text-sm">
-                              {tx.category || "transfer"}
+                              {
+                                tx.category ||
+                                "transfer"
+                              }
                             </span>
 
                           </div>
@@ -424,14 +671,18 @@ export default function Home() {
                             <p className="text-gray-500">
                               From:{" "}
                               <span className="text-gray-300 font-mono">
-                                {shortenAddress(tx.from)}
+                                {shortenAddress(
+                                  tx.from
+                                )}
                               </span>
                             </p>
 
                             <p className="text-gray-500">
                               To:{" "}
                               <span className="text-gray-300 font-mono">
-                                {shortenAddress(tx.to)}
+                                {shortenAddress(
+                                  tx.to
+                                )}
                               </span>
                             </p>
 
@@ -439,17 +690,26 @@ export default function Home() {
 
                         </div>
 
-                        {/* Right */}
                         <div className="text-right shrink-0">
 
                           <p className="text-lg font-semibold">
-                            {formatAmount(tx.value)}
+                            {
+                              formatAmount(
+                                tx.value
+                              )
+                            }{" "}
+                            {
+                              tx.asset ||
+                              "ETH"
+                            }
                           </p>
 
                           <p className="text-gray-500 text-sm mt-1">
-                            {formatDate(
-                              tx.metadata?.blockTimestamp
-                            )}
+                            {
+                              formatDate(
+                                tx.timestamp
+                              )
+                            }
                           </p>
 
                         </div>
@@ -460,22 +720,29 @@ export default function Home() {
                         <div className="mt-4 pt-4 border-t border-gray-800">
 
                           <p className="text-gray-600 text-xs font-mono break-all">
-                            TX: {tx.hash}
+                            TX:{" "}
+                            {
+                              tx.hash
+                            }
                           </p>
 
                         </div>
                       )}
 
                     </div>
-                  ))}
+                  )
+                )}
 
-                </div>
-              )}
+              </div>
+            )}
 
           </div>
         )}
 
-        {/* Analysis Sections */}
+        {/* ================================================= */}
+        {/* ANALYSIS SECTIONS */}
+        {/* ================================================= */}
+
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
 
           {[
@@ -485,26 +752,29 @@ export default function Home() {
             "Counterparties",
             "AI Analysis",
             "Risk",
-          ].map((item) => (
+          ].map(
+            (item) => (
+              <div
+                key={item}
+                className="bg-gray-900 border border-gray-800 rounded-xl p-5"
+              >
+                <p className="text-gray-300">
+                  {item}
+                </p>
 
-            <div
-              key={item}
-              className="bg-gray-900 border border-gray-800 rounded-xl p-5"
-            >
-              <p className="text-gray-300">
-                {item}
-              </p>
-
-              <p className="text-xs text-gray-600 mt-2">
-                Coming soon
-              </p>
-            </div>
-
-          ))}
+                <p className="text-xs text-gray-600 mt-2">
+                  Coming soon
+                </p>
+              </div>
+            )
+          )}
 
         </div>
 
-        {/* AI Chat */}
+        {/* ================================================= */}
+        {/* AI CHAT */}
+        {/* ================================================= */}
+
         <div className="mt-12">
 
           <h2 className="text-2xl font-semibold mb-2">
@@ -512,22 +782,34 @@ export default function Home() {
           </h2>
 
           <p className="text-gray-500 mb-5">
-            Ask the AI about blockchain wallets and on-chain activity.
+            Ask the AI about this
+            wallet and its available
+            on-chain activity.
           </p>
 
           <textarea
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask something..."
+            onChange={(e) =>
+              setMessage(
+                e.target.value
+              )
+            }
+            placeholder="Ask something about this wallet..."
             className="w-full h-32 rounded-xl bg-gray-900 border border-gray-700 p-4 outline-none focus:border-gray-400"
           />
 
           <button
             onClick={askAI}
-            disabled={loading}
+            disabled={
+              loading ||
+              !walletData ||
+              !message.trim()
+            }
             className="mt-4 px-6 py-3 rounded-xl bg-white text-black font-medium disabled:opacity-50"
           >
-            {loading ? "Thinking..." : "Ask AI"}
+            {loading
+              ? "Thinking..."
+              : "Ask AI"}
           </button>
 
           {response && (

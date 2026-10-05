@@ -165,13 +165,9 @@ function buildAssetTransferStats(
     if (!map.has(asset)) {
       map.set(asset, {
         asset,
-
         received: "0",
-
         sent: "0",
-
         receivedTransactions: 0,
-
         sentTransactions: 0,
       });
     }
@@ -205,7 +201,7 @@ function buildAssetTransferStats(
 }
 
 // =====================================================
-// FIND TOKEN HOLDING
+// FIND TOKEN
 // =====================================================
 
 function findToken(
@@ -256,7 +252,7 @@ function findToken(
 }
 
 // =====================================================
-// FIND ASSET TRANSFER STATS
+// FIND ASSET STATS
 // =====================================================
 
 function findAssetStats(
@@ -300,6 +296,7 @@ const intentSchema = {
       type: "string",
 
       enum: [
+        "conversation",
         "current_eth_balance",
         "holding",
         "all_holdings",
@@ -377,7 +374,7 @@ async function understandQuestion(
   message
 ) {
   const prompt = `
-You are the intent understanding layer of an AI wallet analyst.
+You are the intent understanding layer of an AI Wallet Analyst.
 
 Understand the user's meaning semantically.
 
@@ -392,16 +389,72 @@ The user can write:
 - spelling mistakes
 - different sentence structures
 
+There are TWO broad types of user messages:
+
+1. WALLET QUESTIONS
+2. NORMAL CONVERSATION
+
 Do NOT answer the question.
 
-Return ONLY the JSON object that matches the required schema.
+Return ONLY JSON matching the required schema.
 
-IMPORTANT:
+==================================================
+NORMAL CONVERSATION
+==================================================
 
-The asset field must contain the actual asset/token mentioned
-or clearly implied by the user's question.
+If the user is simply greeting, saying hello/hi/hey,
+thanking you, saying okay, or making normal conversation
+without asking for wallet information, use:
+
+{
+  "intent": "conversation",
+  "asset": null
+}
 
 Examples:
+
+User:
+"hello"
+
+Return:
+{
+  "intent": "conversation",
+  "asset": null
+}
+
+User:
+"hi"
+
+Return:
+{
+  "intent": "conversation",
+  "asset": null
+}
+
+User:
+"hey how are you?"
+
+Return:
+{
+  "intent": "conversation",
+  "asset": null
+}
+
+User:
+"thanks"
+
+Return:
+{
+  "intent": "conversation",
+  "asset": null
+}
+
+==================================================
+WALLET QUESTIONS
+==================================================
+
+The asset field must contain the actual asset/token
+mentioned or clearly implied by the user's question.
 
 User:
 "How much USDC did this wallet receive?"
@@ -484,6 +537,11 @@ Return:
   "asset": null
 }
 
+IMPORTANT:
+
+If the user asks a wallet-related question,
+do NOT classify it as conversation.
+
 Do NOT return explanations.
 
 Do NOT return markdown.
@@ -530,7 +588,7 @@ ${message}
         options: {
           temperature: 0,
 
-          num_predict: 120,
+          num_predict: 150,
         },
       }),
     }
@@ -675,7 +733,6 @@ function resolveWalletAnswer(
       };
     }
 
-    // ETH holding question
     if (
       String(asset)
         .trim()
@@ -1169,7 +1226,110 @@ function resolveWalletAnswer(
 }
 
 // =====================================================
-// GENERATE FINAL NATURAL LANGUAGE RESPONSE
+// GENERATE CONVERSATION RESPONSE
+// =====================================================
+
+async function generateConversationAnswer(
+  question
+) {
+  const prompt = `
+You are the conversational assistant inside an AI Wallet Analyst.
+
+The user is making normal conversation rather than asking
+for wallet information.
+
+Respond naturally to the user's message.
+
+Rules:
+- Understand English, Marathi, Hindi, Hinglish and mixed languages.
+- Respond in the language used by the user when possible.
+- Be concise and friendly.
+- Do not mention wallet data unless the user asks about the wallet.
+- Do not invent wallet information.
+- Do not use stored answers.
+- Generate the response dynamically.
+- Do not explain your reasoning.
+- Return ONLY one JSON object.
+
+USER MESSAGE:
+${question}
+`;
+
+  const response =
+    await fetch(
+      OLLAMA_URL,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          model: MODEL,
+
+          messages: [
+            {
+              role: "system",
+              content: prompt,
+            },
+
+            {
+              role: "user",
+              content: question,
+            },
+          ],
+
+          format: answerSchema,
+
+          think: false,
+
+          stream: false,
+
+          options: {
+            temperature: 0.3,
+
+            num_predict: 100,
+          },
+        }),
+      }
+    );
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      `Conversation model error: ${errorText}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const parsed =
+    parseJsonObject(
+      data?.message?.content
+    );
+
+  if (
+    parsed &&
+    typeof parsed.answer ===
+      "string"
+  ) {
+    return cleanText(
+      parsed.answer
+    );
+  }
+
+  return cleanText(
+    data?.message?.content
+  );
+}
+
+// =====================================================
+// GENERATE FINAL WALLET ANSWER
 // =====================================================
 
 async function generateFinalAnswer(
@@ -1353,7 +1513,7 @@ export default async function handler(
 
     // =================================================
     // STEP 1
-    // QWEN UNDERSTANDS USER LANGUAGE + INTENT
+    // UNDERSTAND USER INTENT
     // =================================================
 
     const intent =
@@ -1368,7 +1528,36 @@ export default async function handler(
 
     // =================================================
     // STEP 2
-    // APPLICATION READS / CALCULATES DATA
+    // NORMAL CONVERSATION
+    // =================================================
+
+    if (
+      intent.intent ===
+      "conversation"
+    ) {
+      const answer =
+        await generateConversationAnswer(
+          message.trim()
+        );
+
+      if (!answer) {
+        return res.status(500).json({
+          error:
+            "AI returned an empty response.",
+        });
+      }
+
+      return res.status(200).json({
+        response:
+          answer,
+
+        intent,
+      });
+    }
+
+    // =================================================
+    // STEP 3
+    // WALLET DATA RESOLUTION
     // =================================================
 
     const verifiedResult =
@@ -1383,8 +1572,8 @@ export default async function handler(
     );
 
     // =================================================
-    // STEP 3
-    // QWEN WRITES ONLY FINAL ANSWER
+    // STEP 4
+    // FINAL WALLET ANSWER
     // =================================================
 
     const answer =

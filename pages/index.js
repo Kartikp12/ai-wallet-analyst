@@ -70,7 +70,6 @@ export default function Home() {
     setWalletError("");
     setTransactionError("");
 
-    // UI ONLY
     setShowAllTokens(false);
     setShowAllTransactions(false);
 
@@ -106,7 +105,6 @@ export default function Home() {
 
     setResponse("");
 
-    // UI ONLY
     setShowAllTokens(false);
     setShowAllTransactions(false);
 
@@ -143,8 +141,6 @@ export default function Home() {
         walletResult
       );
 
-      // IMPORTANT:
-      // Transactions already come from /api/wallet.
       setTransactions(
         walletResult.transactions ||
           []
@@ -231,6 +227,27 @@ export default function Home() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // =====================================================
+  // ENTER KEY FOR CHAT
+  // =====================================================
+
+  const handleChatKeyDown = (e) => {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey
+    ) {
+      e.preventDefault();
+
+      if (
+        !loading &&
+        walletData &&
+        message.trim()
+      ) {
+        askAI();
+      }
     }
   };
 
@@ -589,8 +606,6 @@ export default function Home() {
 
             </div>
 
-            {/* SHOW MORE / SHOW LESS */}
-
             {walletData.tokens.length >
               5 && (
               <div className="flex justify-center mt-6">
@@ -790,8 +805,6 @@ export default function Home() {
 
                 </div>
 
-                {/* SHOW MORE / SHOW LESS */}
-
                 {transactions.length >
                   5 && (
                   <div className="flex justify-center mt-6">
@@ -851,61 +864,225 @@ export default function Home() {
         </div>
 
         {/* ================================================= */}
-        {/* AI CHAT */}
+        {/* WHATSAPP STYLE AI CHAT */}
         {/* ================================================= */}
 
-        <div className="mt-12">
+        {walletData && (
+          <div className="mt-12">
 
-          <h2 className="text-2xl font-semibold mb-2">
-            AI Analyst
-          </h2>
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold">
+                AI Analyst
+              </h2>
 
-          <p className="text-gray-500 mb-5">
-            Ask the AI about this
-            wallet and its available
-            on-chain activity.
-          </p>
-
-          <textarea
-            value={message}
-            onChange={(e) =>
-              setMessage(
-                e.target.value
-              )
-            }
-            placeholder="Ask something about this wallet..."
-            className="w-full h-32 rounded-xl bg-gray-900 border border-gray-700 p-4 outline-none focus:border-gray-400"
-          />
-
-          <button
-            onClick={askAI}
-            disabled={
-              loading ||
-              !walletData ||
-              !message.trim()
-            }
-            className="mt-4 px-6 py-3 rounded-xl bg-white text-black font-medium disabled:opacity-50"
-          >
-            {loading
-              ? "Thinking..."
-              : "Ask AI"}
-          </button>
-
-          {response && (
-            <div className="mt-6 rounded-xl bg-gray-900 border border-gray-700 p-6">
-
-              <h3 className="font-semibold mb-3">
-                AI Response
-              </h3>
-
-              <p className="whitespace-pre-wrap text-gray-300 leading-7">
-                {response}
+              <p className="text-gray-500 mt-1">
+                Ask anything about this
+                wallet.
               </p>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
+
+              {/* CHAT HEADER */}
+
+              <div className="px-5 py-4 bg-gray-900 border-b border-gray-800 flex items-center gap-3">
+
+                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg">
+                  AI
+                </div>
+
+                <div>
+                  <p className="font-semibold">
+                    AI Wallet Analyst
+                  </p>
+
+                  <p className="text-xs text-green-400">
+                    Online
+                  </p>
+                </div>
+
+              </div>
+
+              {/* CHAT AREA */}
+
+              <div className="min-h-[300px] max-h-[500px] overflow-y-auto p-5 space-y-5 bg-black">
+
+                {/* EMPTY CHAT */}
+
+                {!message &&
+                  !response &&
+                  !loading && (
+                    <div className="h-[260px] flex items-center justify-center text-center">
+
+                      <div>
+                        <div className="w-14 h-14 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mx-auto mb-4">
+                          🤖
+                        </div>
+
+                        <p className="text-gray-300 font-medium">
+                          Ask the AI about
+                          this wallet
+                        </p>
+
+                        <p className="text-gray-600 text-sm mt-2">
+                          Try asking about
+                          balances,
+                          transactions or
+                          token activity.
+                        </p>
+                      </div>
+
+                    </div>
+                  )}
+
+                {/* USER MESSAGE */}
+
+                {message && (
+                  <div className="flex justify-end">
+
+                    <div className="max-w-[80%]">
+
+                      <div className="bg-white text-black rounded-2xl rounded-br-md px-4 py-3">
+
+                        <p className="whitespace-pre-wrap leading-6">
+                          {message}
+                        </p>
+
+                      </div>
+
+                      <p className="text-[11px] text-gray-600 text-right mt-1">
+                        You
+                      </p>
+
+                    </div>
+
+                  </div>
+                )}
+
+                {/* AI LOADING */}
+
+                {loading && (
+                  <div className="flex justify-start">
+
+                    <div className="max-w-[80%]">
+
+                      <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
+
+                        <div className="flex items-center gap-2">
+
+                          <span className="text-gray-400 text-sm">
+                            Thinking
+                          </span>
+
+                          <span className="flex gap-1">
+
+                            <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
+
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
+                              style={{
+                                animationDelay:
+                                  "150ms",
+                              }}
+                            />
+
+                            <span
+                              className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
+                              style={{
+                                animationDelay:
+                                  "300ms",
+                              }}
+                            />
+
+                          </span>
+
+                        </div>
+
+                      </div>
+
+                      <p className="text-[11px] text-gray-600 mt-1">
+                        AI
+                      </p>
+
+                    </div>
+
+                  </div>
+                )}
+
+                {/* AI RESPONSE */}
+
+                {response &&
+                  !loading && (
+                    <div className="flex justify-start">
+
+                      <div className="max-w-[80%]">
+
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
+
+                          <p className="whitespace-pre-wrap text-gray-300 leading-7">
+                            {response}
+                          </p>
+
+                        </div>
+
+                        <p className="text-[11px] text-gray-600 mt-1">
+                          AI Wallet Analyst
+                        </p>
+
+                      </div>
+
+                    </div>
+                  )}
+
+              </div>
+
+              {/* CHAT INPUT */}
+
+              <div className="p-4 bg-gray-900 border-t border-gray-800">
+
+                <div className="flex items-end gap-3">
+
+                  <textarea
+                    value={message}
+                    onChange={(e) =>
+                      setMessage(
+                        e.target.value
+                      )
+                    }
+                    onKeyDown={
+                      handleChatKeyDown
+                    }
+                    disabled={loading}
+                    rows={1}
+                    placeholder="Type a message..."
+                    className="flex-1 resize-none bg-black border border-gray-700 rounded-2xl px-4 py-3 text-white outline-none focus:border-gray-400 disabled:opacity-50"
+                  />
+
+                  <button
+                    onClick={askAI}
+                    disabled={
+                      loading ||
+                      !message.trim()
+                    }
+                    className="w-12 h-12 shrink-0 rounded-full bg-white text-black flex items-center justify-center font-bold text-lg disabled:opacity-40 hover:bg-gray-200 transition"
+                    aria-label="Send message"
+                  >
+                    ↑
+                  </button>
+
+                </div>
+
+                <p className="text-[11px] text-gray-600 mt-2 px-1">
+                  Enter to send · Shift + Enter
+                  for a new line
+                </p>
+
+              </div>
 
             </div>
-          )}
 
-        </div>
+          </div>
+        )}
 
       </div>
     </main>

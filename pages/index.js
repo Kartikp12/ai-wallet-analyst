@@ -32,6 +32,17 @@ export default function Home() {
     useState("");
 
   // =====================================================
+  // UI ONLY
+  // SHOW MORE / SHOW LESS
+  // =====================================================
+
+  const [showAllTokens, setShowAllTokens] =
+    useState(false);
+
+  const [showAllTransactions, setShowAllTransactions] =
+    useState(false);
+
+  // =====================================================
   // VALIDATE WALLET
   // =====================================================
 
@@ -58,6 +69,10 @@ export default function Home() {
 
     setWalletError("");
     setTransactionError("");
+
+    // UI ONLY
+    setShowAllTokens(false);
+    setShowAllTransactions(false);
 
     if (!value) {
       setWalletValid(null);
@@ -90,6 +105,10 @@ export default function Home() {
     setTransactions([]);
 
     setResponse("");
+
+    // UI ONLY
+    setShowAllTokens(false);
+    setShowAllTransactions(false);
 
     try {
       const walletRes =
@@ -512,7 +531,13 @@ export default function Home() {
 
             <div className="space-y-4">
 
-              {walletData.tokens.map(
+              {(showAllTokens
+                ? walletData.tokens
+                : walletData.tokens.slice(
+                    0,
+                    5
+                  )
+              ).map(
                 (
                   token,
                   index
@@ -563,6 +588,29 @@ export default function Home() {
               )}
 
             </div>
+
+            {/* SHOW MORE / SHOW LESS */}
+
+            {walletData.tokens.length >
+              5 && (
+              <div className="flex justify-center mt-6">
+
+                <button
+                  onClick={() =>
+                    setShowAllTokens(
+                      !showAllTokens
+                    )
+                  }
+                  className="px-5 py-2.5 rounded-xl border border-gray-700 bg-black text-gray-300 hover:border-gray-500 hover:text-white transition"
+                >
+                  {showAllTokens
+                    ? "Show Less"
+                    : `Show More (${walletData.tokens.length - 5})`}
+                </button>
+
+              </div>
+            )}
+
           </div>
         )}
 
@@ -619,121 +667,152 @@ export default function Home() {
 
             {transactions.length >
               0 && (
-              <div className="space-y-3">
+              <>
+                <div className="space-y-3">
 
-                {transactions.map(
-                  (
-                    tx,
-                    index
-                  ) => (
-                    <div
-                      key={`${tx.hash || "tx"}-${index}`}
-                      className="bg-black border border-gray-800 rounded-xl p-5"
-                    >
+                  {(showAllTransactions
+                    ? transactions
+                    : transactions.slice(
+                        0,
+                        5
+                      )
+                  ).map(
+                    (
+                      tx,
+                      index
+                    ) => (
+                      <div
+                        key={`${tx.hash || "tx"}-${index}`}
+                        className="bg-black border border-gray-800 rounded-xl p-5"
+                      >
 
-                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start justify-between gap-4">
 
-                        <div className="min-w-0">
+                          <div className="min-w-0">
 
-                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-3 flex-wrap">
 
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                tx.direction ===
-                                "IN"
-                                  ? "bg-green-950 text-green-400 border border-green-900"
-                                  : "bg-red-950 text-red-400 border border-red-900"
-                              }`}
-                            >
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  tx.direction ===
+                                  "IN"
+                                    ? "bg-green-950 text-green-400 border border-green-900"
+                                    : "bg-red-950 text-red-400 border border-red-900"
+                                }`}
+                              >
+                                {
+                                  tx.direction
+                                }
+                              </span>
+
+                              <span className="text-gray-300">
+                                {
+                                  tx.asset ||
+                                  "ETH"
+                                }
+                              </span>
+
+                              <span className="text-gray-500 text-sm">
+                                {
+                                  tx.category ||
+                                  "transfer"
+                                }
+                              </span>
+
+                            </div>
+
+                            <div className="mt-4 space-y-2 text-sm">
+
+                              <p className="text-gray-500">
+                                From:{" "}
+                                <span className="text-gray-300 font-mono">
+                                  {shortenAddress(
+                                    tx.from
+                                  )}
+                                </span>
+                              </p>
+
+                              <p className="text-gray-500">
+                                To:{" "}
+                                <span className="text-gray-300 font-mono">
+                                  {shortenAddress(
+                                    tx.to
+                                  )}
+                                </span>
+                              </p>
+
+                            </div>
+
+                          </div>
+
+                          <div className="text-right shrink-0">
+
+                            <p className="text-lg font-semibold">
                               {
-                                tx.direction
-                              }
-                            </span>
-
-                            <span className="text-gray-300">
+                                formatAmount(
+                                  tx.value
+                                )
+                              }{" "}
                               {
                                 tx.asset ||
                                 "ETH"
                               }
-                            </span>
+                            </p>
 
-                            <span className="text-gray-500 text-sm">
+                            <p className="text-gray-500 text-sm mt-1">
                               {
-                                tx.category ||
-                                "transfer"
+                                formatDate(
+                                  tx.timestamp
+                                )
                               }
-                            </span>
-
-                          </div>
-
-                          <div className="mt-4 space-y-2 text-sm">
-
-                            <p className="text-gray-500">
-                              From:{" "}
-                              <span className="text-gray-300 font-mono">
-                                {shortenAddress(
-                                  tx.from
-                                )}
-                              </span>
-                            </p>
-
-                            <p className="text-gray-500">
-                              To:{" "}
-                              <span className="text-gray-300 font-mono">
-                                {shortenAddress(
-                                  tx.to
-                                )}
-                              </span>
                             </p>
 
                           </div>
 
                         </div>
 
-                        <div className="text-right shrink-0">
+                        {tx.hash && (
+                          <div className="mt-4 pt-4 border-t border-gray-800">
 
-                          <p className="text-lg font-semibold">
-                            {
-                              formatAmount(
-                                tx.value
-                              )
-                            }{" "}
-                            {
-                              tx.asset ||
-                              "ETH"
-                            }
-                          </p>
+                            <p className="text-gray-600 text-xs font-mono break-all">
+                              TX:{" "}
+                              {
+                                tx.hash
+                              }
+                            </p>
 
-                          <p className="text-gray-500 text-sm mt-1">
-                            {
-                              formatDate(
-                                tx.timestamp
-                              )
-                            }
-                          </p>
-
-                        </div>
+                          </div>
+                        )}
 
                       </div>
+                    )
+                  )}
 
-                      {tx.hash && (
-                        <div className="mt-4 pt-4 border-t border-gray-800">
+                </div>
 
-                          <p className="text-gray-600 text-xs font-mono break-all">
-                            TX:{" "}
-                            {
-                              tx.hash
-                            }
-                          </p>
+                {/* SHOW MORE / SHOW LESS */}
 
-                        </div>
-                      )}
+                {transactions.length >
+                  5 && (
+                  <div className="flex justify-center mt-6">
 
-                    </div>
-                  )
+                    <button
+                      onClick={() =>
+                        setShowAllTransactions(
+                          !showAllTransactions
+                        )
+                      }
+                      className="px-5 py-2.5 rounded-xl border border-gray-700 bg-black text-gray-300 hover:border-gray-500 hover:text-white transition"
+                    >
+                      {showAllTransactions
+                        ? "Show Less"
+                        : `Show More (${transactions.length - 5})`}
+                    </button>
+
+                  </div>
                 )}
 
-              </div>
+              </>
             )}
 
           </div>

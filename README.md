@@ -1,7 +1,7 @@
 # 🤖 AI Wallet Analyst
 
 
-![Wallet Analysis](./screenshots/wallet-search)
+![Wallet Analysis](./screenshots/wallet-search.png)
 
 AI-powered blockchain wallet intelligence platform that allows users to analyze an Ethereum wallet using real on-chain data and interact with an AI assistant.
 

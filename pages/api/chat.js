@@ -1,181 +1,1423 @@
-const OLLAMA_URL = "http://127.0.0.1:11434/api/chat";
+const OLLAMA_URL =
+  "http://127.0.0.1:11434/api/chat";
+
 const MODEL = "qwen3:4b";
 
-function cleanResponse(text) {
-  if (!text) return "";
+// =====================================================
+// CLEAN RESPONSE
+// =====================================================
+
+function cleanText(text) {
+  if (!text) {
+    return "";
+  }
 
   return text
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+    .replace(
+      /<think>[\s\S]*?<\/think>/gi,
+      ""
+    )
+    .replace(
+      /<thinking>[\s\S]*?<\/thinking>/gi,
+      ""
+    )
     .trim();
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      error: "Method not allowed",
-    });
+// =====================================================
+// EXACT DECIMAL ADDITION
+// =====================================================
+
+function addDecimalStrings(values) {
+  if (!values || values.length === 0) {
+    return "0";
+  }
+
+  let maxDecimals = 0;
+
+  const numbers = values.map((value) => {
+    const stringValue =
+      String(value ?? "0").trim();
+
+    const parts = stringValue.split(".");
+
+    const integerPart =
+      parts[0] || "0";
+
+    const decimalPart =
+      parts[1] || "";
+
+    maxDecimals = Math.max(
+      maxDecimals,
+      decimalPart.length
+    );
+
+    return {
+      integerPart,
+      decimalPart,
+    };
+  });
+
+  let scale = 1n;
+
+  for (
+    let i = 0;
+    i < maxDecimals;
+    i++
+  ) {
+    scale *= 10n;
+  }
+
+  let total = 0n;
+
+  for (const number of numbers) {
+    const integerPart =
+      number.integerPart.replace(
+        /[^0-9]/g,
+        ""
+      ) || "0";
+
+    const decimalPart =
+      number.decimalPart.replace(
+        /[^0-9]/g,
+        ""
+      );
+
+    const paddedDecimal =
+      decimalPart.padEnd(
+        maxDecimals,
+        "0"
+      );
+
+    total +=
+      BigInt(integerPart) * scale +
+      BigInt(
+        paddedDecimal || "0"
+      );
+  }
+
+  let result = total.toString();
+
+  if (maxDecimals === 0) {
+    return result;
+  }
+
+  result = result.padStart(
+    maxDecimals + 1,
+    "0"
+  );
+
+  const split =
+    result.length - maxDecimals;
+
+  const integerPart =
+    result.slice(0, split);
+
+  const decimalPart =
+    result.slice(split);
+
+  const cleaned =
+    decimalPart.replace(
+      /0+$/,
+      ""
+    );
+
+  if (!cleaned) {
+    return integerPart;
+  }
+
+  return `${integerPart}.${cleaned}`;
+}
+
+// =====================================================
+// BUILD GENERIC ASSET TRANSFER STATS
+// =====================================================
+
+function buildAssetTransferStats(
+  transactions
+) {
+  const map = new Map();
+
+  for (const tx of transactions || []) {
+    const asset =
+      String(
+        tx?.asset || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const direction =
+      String(
+        tx?.direction || ""
+      ).toUpperCase();
+
+    if (!asset) {
+      continue;
+    }
+
+    if (
+      direction !== "IN" &&
+      direction !== "OUT"
+    ) {
+      continue;
+    }
+
+    if (!map.has(asset)) {
+      map.set(asset, {
+        asset,
+
+        received: "0",
+
+        sent: "0",
+
+        receivedTransactions: 0,
+
+        sentTransactions: 0,
+      });
+    }
+
+    const item = map.get(asset);
+
+    if (direction === "IN") {
+      item.received =
+        addDecimalStrings([
+          item.received,
+          tx?.value,
+        ]);
+
+      item.receivedTransactions += 1;
+    }
+
+    if (direction === "OUT") {
+      item.sent =
+        addDecimalStrings([
+          item.sent,
+          tx?.value,
+        ]);
+
+      item.sentTransactions += 1;
+    }
+  }
+
+  return Array.from(
+    map.values()
+  );
+}
+
+// =====================================================
+// FIND TOKEN HOLDING
+// =====================================================
+
+function findToken(
+  tokens,
+  asset
+) {
+  if (
+    !asset ||
+    !Array.isArray(tokens)
+  ) {
+    return null;
+  }
+
+  const query =
+    String(asset)
+      .trim()
+      .toUpperCase();
+
+  return (
+    tokens.find(
+      (token) =>
+        String(
+          token?.symbol || ""
+        ).toUpperCase() ===
+        query
+    ) ||
+
+    tokens.find(
+      (token) =>
+        String(
+          token?.name || ""
+        ).toUpperCase() ===
+        query
+    ) ||
+
+    tokens.find(
+      (token) =>
+        String(
+          token?.contractAddress ||
+            token?.address ||
+            ""
+        ).toUpperCase() ===
+        query
+    ) ||
+
+    null
+  );
+}
+
+// =====================================================
+// FIND ASSET TRANSFER STATS
+// =====================================================
+
+function findAssetStats(
+  assetTransferStats,
+  asset
+) {
+  if (
+    !asset ||
+    !Array.isArray(
+      assetTransferStats
+    )
+  ) {
+    return null;
+  }
+
+  const query =
+    String(asset)
+      .trim()
+      .toUpperCase();
+
+  return (
+    assetTransferStats.find(
+      (item) =>
+        String(
+          item?.asset || ""
+        ).toUpperCase() ===
+        query
+    ) || null
+  );
+}
+
+// =====================================================
+// QWEN INTENT SCHEMA
+// =====================================================
+
+const intentSchema = {
+  type: "object",
+
+  properties: {
+    intent: {
+      type: "string",
+
+      enum: [
+        "current_eth_balance",
+        "holding",
+        "all_holdings",
+        "received",
+        "sent",
+        "transaction_count",
+        "incoming_transaction_count",
+        "outgoing_transaction_count",
+        "asset_transaction_count",
+        "incoming_transactions",
+        "outgoing_transactions",
+        "recent_transactions",
+        "overview",
+        "unknown",
+      ],
+    },
+
+    asset: {
+      anyOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+
+  required: [
+    "intent",
+    "asset",
+  ],
+};
+
+// =====================================================
+// FINAL ANSWER SCHEMA
+// =====================================================
+
+const answerSchema = {
+  type: "object",
+
+  properties: {
+    answer: {
+      type: "string",
+    },
+  },
+
+  required: [
+    "answer",
+  ],
+};
+
+// =====================================================
+// SAFE JSON PARSER
+// =====================================================
+
+function parseJsonObject(text) {
+  if (!text) {
+    return null;
   }
 
   try {
-    const { message, walletData } = req.body || {};
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
 
-    if (!message || typeof message !== "string") {
-      return res.status(400).json({
-        error: "Message is required.",
-      });
-    }
+// =====================================================
+// UNDERSTAND USER QUESTION
+// =====================================================
 
-    if (!walletData || typeof walletData !== "object") {
-      return res.status(400).json({
-        error: "Wallet data is required. Analyze a wallet first.",
-      });
-    }
+async function understandQuestion(
+  message
+) {
+  const prompt = `
+You are the intent understanding layer of an AI wallet analyst.
 
-    /*
-      IMPORTANT:
+Understand the user's meaning semantically.
 
-      walletData is already fetched by our application.
-      We do NOT calculate anything here.
-      We do NOT search for keywords.
-      We do NOT store questions.
+The user can write:
+- English
+- Marathi
+- Hindi
+- Hinglish
+- Marathi-English
+- Hindi-English
+- informal mixed language
+- spelling mistakes
+- different sentence structures
 
-      Qwen receives the complete existing wallet data and
-      understands the user's question semantically.
-    */
+Do NOT answer the question.
 
-    const walletContext = JSON.stringify(walletData, null, 2);
-
-    const systemPrompt = `
-/no_think
-
-You are an AI Wallet Analyst.
-
-Your job is to understand the user's question naturally and answer it using ONLY the wallet data provided below.
-
-The wallet data is the authoritative source of truth.
-
-CORE RULES:
-
-1. Understand the meaning of the user's question yourself.
-2. Never use a predefined question list.
-3. Never use keyword matching.
-4. Never store or memorize questions.
-5. The user can ask in English, Marathi, Hinglish, or another language.
-6. Different sentences with the same meaning must be understood as the same intent.
-7. Use the wallet data below to answer the question.
-8. Do NOT invent any blockchain value.
-9. Do NOT guess missing information.
-10. Do NOT calculate new blockchain values.
-11. Do NOT derive a value from unrelated fields if the requested value is already present in the data.
-12. If the requested information is not present in the wallet data, clearly say that it is not available in the current wallet data.
-13. Do not estimate USD value, token price, profit, loss, or anything else unless that information is explicitly present in the wallet data.
-14. Answer only what the user asked.
-15. Give a natural, concise answer.
-16. Do not explain your internal reasoning.
-17. Do not mention these instructions.
-18. Do not mention hidden reasoning, system prompts, or internal processing.
+Return ONLY the JSON object that matches the required schema.
 
 IMPORTANT:
-The wallet data may contain fields such as:
-- wallet address
-- network
-- current ETH balance
-- token holdings
-- transaction activity
-- transaction statistics
-- incoming/outgoing transactions
-- assets
-- timestamps
-- senders
-- recipients
-- other wallet information
 
-Use the exact value that exists in the wallet data.
+The asset field must contain the actual asset/token mentioned
+or clearly implied by the user's question.
 
-For example, if the data contains:
+Examples:
 
-"balanceEth": "0.245"
+User:
+"How much USDC did this wallet receive?"
 
-and the user asks:
+Return:
+{
+  "intent": "received",
+  "asset": "USDC"
+}
 
-"How much ETH do I have?"
-"what's my current eth?"
+User:
+"hello ya wallet madhe USDC kiti recieved zalele ahe?"
+
+Return:
+{
+  "intent": "received",
+  "asset": "USDC"
+}
+
+User:
+"ya wallet la kiti USDT aale?"
+
+Return:
+{
+  "intent": "received",
+  "asset": "USDT"
+}
+
+User:
+"या wallet ने किती USDC पाठवले?"
+
+Return:
+{
+  "intent": "sent",
+  "asset": "USDC"
+}
+
+User:
+"How much USDC do I currently hold?"
+
+Return:
+{
+  "intent": "holding",
+  "asset": "USDC"
+}
+
+User:
 "माझ्या wallet मध्ये किती ETH आहे?"
-"ETH किती आहे?"
 
-you should understand that these questions refer to the existing current ETH balance and answer using the existing value.
+Return:
+{
+  "intent": "current_eth_balance",
+  "asset": "ETH"
+}
 
-Similarly, if the data contains a field for received ETH, use that existing field when the user asks about ETH received.
+User:
+"Which tokens does this wallet hold?"
 
-Do not calculate it yourself.
+Return:
+{
+  "intent": "all_holdings",
+  "asset": null
+}
 
-========================
-AUTHORITATIVE WALLET DATA
-========================
+User:
+"How many transactions does this wallet have?"
 
-${walletContext}
+Return:
+{
+  "intent": "transaction_count",
+  "asset": null
+}
 
-========================
-END WALLET DATA
-========================
+User:
+"show incoming transactions"
+
+Return:
+{
+  "intent": "incoming_transactions",
+  "asset": null
+}
+
+Do NOT return explanations.
+
+Do NOT return markdown.
+
+Do NOT return reasoning.
+
+Return JSON only.
+
+USER QUESTION:
+${message}
 `;
 
-    const ollamaResponse = await fetch(OLLAMA_URL, {
+  const response = await fetch(
+    OLLAMA_URL,
+    {
       method: "POST",
+
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":
+          "application/json",
       },
+
       body: JSON.stringify({
         model: MODEL,
 
         messages: [
           {
             role: "system",
-            content: systemPrompt,
+            content: prompt,
           },
+
           {
             role: "user",
-            content: message.trim(),
+            content: message,
           },
         ],
 
+        format: intentSchema,
+
         think: false,
+
         stream: false,
 
         options: {
           temperature: 0,
-          num_predict: 600,
+
+          num_predict: 120,
         },
       }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      `Intent model error: ${errorText}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const parsed =
+    parseJsonObject(
+      data?.message?.content
+    );
+
+  if (!parsed) {
+    return {
+      intent: "unknown",
+      asset: null,
+    };
+  }
+
+  return {
+    intent:
+      parsed.intent ||
+      "unknown",
+
+    asset:
+      parsed.asset ||
+      null,
+  };
+}
+
+// =====================================================
+// RESOLVE WALLET DATA
+// =====================================================
+
+function resolveWalletAnswer(
+  intentData,
+  walletData
+) {
+  const intent =
+    intentData?.intent ||
+    "unknown";
+
+  const asset =
+    intentData?.asset ||
+    null;
+
+  const transactions =
+    Array.isArray(
+      walletData?.transactions
+    )
+      ? walletData.transactions
+      : [];
+
+  const tokens =
+    Array.isArray(
+      walletData?.tokens
+    )
+      ? walletData.tokens
+      : [];
+
+  const stats =
+    walletData?.stats || {};
+
+  const assetTransferStats =
+    Array.isArray(
+      walletData?.assetTransferStats
+    )
+      ? walletData.assetTransferStats
+      : buildAssetTransferStats(
+          transactions
+        );
+
+  // ===================================================
+  // CURRENT ETH BALANCE
+  // ===================================================
+
+  if (
+    intent ===
+    "current_eth_balance"
+  ) {
+    return {
+      status: "available",
+
+      type:
+        "current_eth_balance",
+
+      asset: "ETH",
+
+      value:
+        walletData?.balanceEth ??
+        null,
+    };
+  }
+
+  // ===================================================
+  // ALL HOLDINGS
+  // ===================================================
+
+  if (
+    intent ===
+    "all_holdings"
+  ) {
+    return {
+      status: "available",
+
+      type:
+        "all_holdings",
+
+      ethBalance:
+        walletData?.balanceEth ??
+        null,
+
+      holdings:
+        tokens,
+    };
+  }
+
+  // ===================================================
+  // CURRENT TOKEN HOLDING
+  // ===================================================
+
+  if (
+    intent === "holding"
+  ) {
+    if (!asset) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          "No specific asset was identified.",
+      };
+    }
+
+    // ETH holding question
+    if (
+      String(asset)
+        .trim()
+        .toUpperCase() ===
+      "ETH"
+    ) {
+      return {
+        status: "available",
+
+        type:
+          "current_eth_balance",
+
+        asset: "ETH",
+
+        value:
+          walletData?.balanceEth ??
+          null,
+      };
+    }
+
+    const token =
+      findToken(
+        tokens,
+        asset
+      );
+
+    if (!token) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          `${asset} is not present in the current wallet holding data.`,
+      };
+    }
+
+    return {
+      status: "available",
+
+      type:
+        "holding",
+
+      asset:
+        token.symbol ||
+        asset,
+
+      tokenName:
+        token.name ||
+        null,
+
+      value:
+        token.balance,
+    };
+  }
+
+  // ===================================================
+  // RECEIVED
+  // ===================================================
+
+  if (
+    intent ===
+    "received"
+  ) {
+    if (!asset) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          "No specific asset was identified.",
+      };
+    }
+
+    const item =
+      findAssetStats(
+        assetTransferStats,
+        asset
+      );
+
+    if (!item) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          `${asset} is not present in the available transaction data.`,
+      };
+    }
+
+    if (
+      item.receivedTransactions ===
+      0
+    ) {
+      return {
+        status:
+          "available",
+
+        type:
+          "received",
+
+        asset:
+          item.asset,
+
+        value:
+          "0",
+
+        transactionCount:
+          0,
+      };
+    }
+
+    return {
+      status: "available",
+
+      type:
+        "received",
+
+      asset:
+        item.asset,
+
+      value:
+        item.received,
+
+      transactionCount:
+        item.receivedTransactions,
+    };
+  }
+
+  // ===================================================
+  // SENT
+  // ===================================================
+
+  if (
+    intent === "sent"
+  ) {
+    if (!asset) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          "No specific asset was identified.",
+      };
+    }
+
+    const item =
+      findAssetStats(
+        assetTransferStats,
+        asset
+      );
+
+    if (!item) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          `${asset} is not present in the available transaction data.`,
+      };
+    }
+
+    if (
+      item.sentTransactions ===
+      0
+    ) {
+      return {
+        status:
+          "available",
+
+        type:
+          "sent",
+
+        asset:
+          item.asset,
+
+        value:
+          "0",
+
+        transactionCount:
+          0,
+      };
+    }
+
+    return {
+      status: "available",
+
+      type:
+        "sent",
+
+      asset:
+        item.asset,
+
+      value:
+        item.sent,
+
+      transactionCount:
+        item.sentTransactions,
+    };
+  }
+
+  // ===================================================
+  // TRANSACTION COUNT
+  // ===================================================
+
+  if (
+    intent ===
+    "transaction_count"
+  ) {
+    return {
+      status: "available",
+
+      type:
+        "transaction_count",
+
+      value:
+        stats.transactionCount ??
+        transactions.length,
+    };
+  }
+
+  // ===================================================
+  // INCOMING COUNT
+  // ===================================================
+
+  if (
+    intent ===
+    "incoming_transaction_count"
+  ) {
+    return {
+      status: "available",
+
+      type:
+        "incoming_transaction_count",
+
+      value:
+        stats.incomingTransactions ??
+        transactions.filter(
+          (tx) =>
+            tx.direction ===
+            "IN"
+        ).length,
+    };
+  }
+
+  // ===================================================
+  // OUTGOING COUNT
+  // ===================================================
+
+  if (
+    intent ===
+    "outgoing_transaction_count"
+  ) {
+    return {
+      status: "available",
+
+      type:
+        "outgoing_transaction_count",
+
+      value:
+        stats.outgoingTransactions ??
+        transactions.filter(
+          (tx) =>
+            tx.direction ===
+            "OUT"
+        ).length,
+    };
+  }
+
+  // ===================================================
+  // SPECIFIC ASSET TRANSACTION COUNT
+  // ===================================================
+
+  if (
+    intent ===
+    "asset_transaction_count"
+  ) {
+    if (!asset) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          "No specific asset was identified.",
+      };
+    }
+
+    const item =
+      findAssetStats(
+        assetTransferStats,
+        asset
+      );
+
+    if (!item) {
+      return {
+        status:
+          "unavailable",
+
+        reason:
+          `${asset} is not present in the available transaction data.`,
+      };
+    }
+
+    return {
+      status: "available",
+
+      type:
+        "asset_transaction_count",
+
+      asset:
+        item.asset,
+
+      value:
+        item.receivedTransactions +
+        item.sentTransactions,
+    };
+  }
+
+  // ===================================================
+  // INCOMING TRANSACTIONS
+  // ===================================================
+
+  if (
+    intent ===
+    "incoming_transactions"
+  ) {
+    let filtered =
+      transactions.filter(
+        (tx) =>
+          String(
+            tx?.direction ||
+              ""
+          ).toUpperCase() ===
+          "IN"
+      );
+
+    if (asset) {
+      filtered =
+        filtered.filter(
+          (tx) =>
+            String(
+              tx?.asset || ""
+            ).toUpperCase() ===
+            String(
+              asset
+            ).toUpperCase()
+        );
+    }
+
+    return {
+      status:
+        "available",
+
+      type:
+        "incoming_transactions",
+
+      asset:
+        asset || null,
+
+      count:
+        filtered.length,
+
+      transactions:
+        filtered.slice(
+          0,
+          25
+        ),
+    };
+  }
+
+  // ===================================================
+  // OUTGOING TRANSACTIONS
+  // ===================================================
+
+  if (
+    intent ===
+    "outgoing_transactions"
+  ) {
+    let filtered =
+      transactions.filter(
+        (tx) =>
+          String(
+            tx?.direction ||
+              ""
+          ).toUpperCase() ===
+          "OUT"
+      );
+
+    if (asset) {
+      filtered =
+        filtered.filter(
+          (tx) =>
+            String(
+              tx?.asset || ""
+            ).toUpperCase() ===
+            String(
+              asset
+            ).toUpperCase()
+        );
+    }
+
+    return {
+      status:
+        "available",
+
+      type:
+        "outgoing_transactions",
+
+      asset:
+        asset || null,
+
+      count:
+        filtered.length,
+
+      transactions:
+        filtered.slice(
+          0,
+          25
+        ),
+    };
+  }
+
+  // ===================================================
+  // RECENT TRANSACTIONS
+  // ===================================================
+
+  if (
+    intent ===
+    "recent_transactions"
+  ) {
+    return {
+      status:
+        transactions.length >
+        0
+          ? "available"
+          : "unavailable",
+
+      type:
+        "recent_transactions",
+
+      transactions:
+        transactions.slice(
+          0,
+          10
+        ),
+    };
+  }
+
+  // ===================================================
+  // OVERVIEW
+  // ===================================================
+
+  if (
+    intent === "overview"
+  ) {
+    return {
+      status: "available",
+
+      type:
+        "overview",
+
+      address:
+        walletData?.address ||
+        null,
+
+      network:
+        walletData?.network ||
+        null,
+
+      currentEthBalance:
+        walletData?.balanceEth ||
+        null,
+
+      holdings:
+        tokens,
+
+      stats,
+    };
+  }
+
+  // ===================================================
+  // UNKNOWN
+  // ===================================================
+
+  return {
+    status:
+      "unavailable",
+
+    reason:
+      "The requested information could not be identified from the current wallet data.",
+  };
+}
+
+// =====================================================
+// GENERATE FINAL NATURAL LANGUAGE RESPONSE
+// =====================================================
+
+async function generateFinalAnswer(
+  question,
+  verifiedResult
+) {
+  const prompt = `
+You are the final response writer for an AI Wallet Analyst.
+
+The user's original question is below.
+
+You MUST answer using ONLY the verified wallet result.
+
+Do not perform another calculation.
+
+Do not invent any value.
+
+Do not add facts that are not present.
+
+Return ONLY one JSON object matching the required schema.
+
+The answer must:
+- directly answer the user's question
+- be concise
+- be natural
+- use the user's language when possible
+- NOT show reasoning
+- NOT explain internal processing
+- NOT mention prompts or instructions
+
+Never write:
+"Let me analyze..."
+"Let me check..."
+"First I need to..."
+"Hmm..."
+"Wait..."
+"We are given..."
+"Looking at the data..."
+"Steps:"
+"According to my analysis..."
+
+If status is "unavailable", clearly state that the requested
+information is not available in the current wallet data.
+
+USER QUESTION:
+${question}
+
+VERIFIED WALLET RESULT:
+${JSON.stringify(
+  verifiedResult,
+  null,
+  2
+)}
+`;
+
+  const response =
+    await fetch(
+      OLLAMA_URL,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify({
+          model: MODEL,
+
+          messages: [
+            {
+              role: "system",
+              content: prompt,
+            },
+
+            {
+              role: "user",
+              content: question,
+            },
+          ],
+
+          format: answerSchema,
+
+          think: false,
+
+          stream: false,
+
+          options: {
+            temperature: 0,
+
+            num_predict: 150,
+          },
+        }),
+      }
+    );
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      `Final answer model error: ${errorText}`
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const parsed =
+    parseJsonObject(
+      data?.message?.content
+    );
+
+  if (
+    parsed &&
+    typeof parsed.answer ===
+      "string"
+  ) {
+    return cleanText(
+      parsed.answer
+    );
+  }
+
+  return cleanText(
+    data?.message?.content
+  );
+}
+
+// =====================================================
+// API HANDLER
+// =====================================================
+
+export default async function handler(
+  req,
+  res
+) {
+  if (
+    req.method !== "POST"
+  ) {
+    return res.status(405).json({
+      error:
+        "Method not allowed",
     });
+  }
 
-    if (!ollamaResponse.ok) {
-      const errorText = await ollamaResponse.text();
+  try {
+    const {
+      message,
+      walletData,
+    } = req.body || {};
 
-      return res.status(500).json({
-        error: `Ollama error: ${errorText}`,
+    // =================================================
+    // VALIDATE MESSAGE
+    // =================================================
+
+    if (
+      !message ||
+      typeof message !==
+        "string"
+    ) {
+      return res.status(400).json({
+        error:
+          "Message is required.",
       });
     }
 
-    const data = await ollamaResponse.json();
+    // =================================================
+    // VALIDATE WALLET DATA
+    // =================================================
 
-    const answer = cleanResponse(data?.message?.content);
+    if (
+      !walletData ||
+      typeof walletData !==
+        "object"
+    ) {
+      return res.status(400).json({
+        error:
+          "Wallet data is required. Analyze a wallet first.",
+      });
+    }
+
+    // =================================================
+    // STEP 1
+    // QWEN UNDERSTANDS USER LANGUAGE + INTENT
+    // =================================================
+
+    const intent =
+      await understandQuestion(
+        message.trim()
+      );
+
+    console.log(
+      "AI intent:",
+      intent
+    );
+
+    // =================================================
+    // STEP 2
+    // APPLICATION READS / CALCULATES DATA
+    // =================================================
+
+    const verifiedResult =
+      resolveWalletAnswer(
+        intent,
+        walletData
+      );
+
+    console.log(
+      "Verified wallet result:",
+      verifiedResult
+    );
+
+    // =================================================
+    // STEP 3
+    // QWEN WRITES ONLY FINAL ANSWER
+    // =================================================
+
+    const answer =
+      await generateFinalAnswer(
+        message.trim(),
+        verifiedResult
+      );
 
     if (!answer) {
       return res.status(500).json({
-        error: "AI returned an empty response.",
+        error:
+          "AI returned an empty response.",
       });
     }
 
     return res.status(200).json({
-      response: answer,
+      response:
+        answer,
+
+      intent,
+
+      verifiedResult,
     });
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error(
+      "Chat API error:",
+      error
+    );
 
     return res.status(500).json({
-      error: "Failed to process AI request.",
+      error:
+        error.message ||
+        "Failed to process AI request.",
     });
   }
 }

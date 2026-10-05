@@ -1,5 +1,8 @@
 # 🤖 AI Wallet Analyst
 
+
+![Wallet Analysis](./screenshots/wallet-search)
+
 AI-powered blockchain wallet intelligence platform that allows users to analyze an Ethereum wallet using real on-chain data and interact with an AI assistant.
 
 The project combines **Next.js, Ethereum blockchain data, Alchemy API, Ollama and Qwen3 LLM** to provide an AI-powered conversational interface for wallet analysis.

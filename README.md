@@ -10,6 +10,10 @@ The project combines **Next.js, Ethereum blockchain data, Alchemy API, Ollama an
 Users can enter an Ethereum wallet address, fetch its blockchain data, and ask natural-language questions about the wallet.
 
 ---
+![Tokens Holding](./screenshots/token-holding.png)
+![Transaction Activity](./screenshots/transactions.png)
+![AI-Analyst](./screenshots/ai-chat.png)
+
 
 ## 🚀 Project Overview
 

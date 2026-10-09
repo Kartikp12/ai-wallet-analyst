@@ -1,75 +1,34 @@
 import { useState } from "react";
 
 export default function Home() {
-  const [walletAddress, setWalletAddress] =
-    useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [message, setMessage] = useState("");
+  const [response, setResponse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [walletValid, setWalletValid] = useState(null);
+  const [walletData, setWalletData] = useState(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState("");
+  const [transactions, setTransactions] = useState([]);
+  const [transactionError, setTransactionError] = useState("");
+  const [showAllTokens, setShowAllTokens] = useState(false);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
 
-  const [message, setMessage] =
-    useState("");
-
-  const [response, setResponse] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [walletValid, setWalletValid] =
-    useState(null);
-
-  const [walletData, setWalletData] =
-    useState(null);
-
-  const [walletLoading, setWalletLoading] =
-    useState(false);
-
-  const [walletError, setWalletError] =
-    useState("");
-
-  const [transactions, setTransactions] =
-    useState([]);
-
-  const [transactionError, setTransactionError] =
-    useState("");
-
-  // =====================================================
-  // UI ONLY
-  // SHOW MORE / SHOW LESS
-  // =====================================================
-
-  const [showAllTokens, setShowAllTokens] =
-    useState(false);
-
-  const [showAllTransactions, setShowAllTransactions] =
-    useState(false);
-
-  // =====================================================
-  // VALIDATE WALLET
-  // =====================================================
-
+  // Validate Ethereum wallet address
   const validateWallet = (address) => {
-    return /^0x[a-fA-F0-9]{40}$/.test(
-      address
-    );
+    return /^0x[a-fA-F0-9]{40}$/.test(address);
   };
 
-  // =====================================================
-  // WALLET INPUT
-  // =====================================================
-
+  // Handle wallet input
   const handleWalletChange = (e) => {
-    const value =
-      e.target.value.trim();
+    const value = e.target.value.trim();
 
     setWalletAddress(value);
-
     setWalletData(null);
     setTransactions([]);
-
     setResponse("");
-
     setWalletError("");
     setTransactionError("");
-
     setShowAllTokens(false);
     setShowAllTransactions(false);
 
@@ -78,92 +37,58 @@ export default function Home() {
       return;
     }
 
-    setWalletValid(
-      validateWallet(value)
-    );
+    setWalletValid(validateWallet(value));
   };
 
-  // =====================================================
-  // ANALYZE WALLET
-  // =====================================================
-
+  // Analyze wallet
   const analyzeWallet = async () => {
     if (!walletValid) {
-      setWalletError(
-        "Please enter a valid Ethereum wallet address."
-      );
+      setWalletError("Please enter a valid Ethereum wallet address.");
       return;
     }
 
     setWalletLoading(true);
-
     setWalletError("");
     setTransactionError("");
-
     setWalletData(null);
     setTransactions([]);
-
     setResponse("");
-
     setShowAllTokens(false);
     setShowAllTransactions(false);
 
     try {
-      const walletRes =
-        await fetch(
-          "/api/wallet",
-          {
-            method: "POST",
+      const walletRes = await fetch("/api/wallet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          address: walletAddress,
+        }),
+      });
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              address:
-                walletAddress,
-            }),
-          }
-        );
-
-      const walletResult =
-        await walletRes.json();
+      const walletResult = await walletRes.json();
 
       if (!walletRes.ok) {
         throw new Error(
-          walletResult.error ||
-            "Failed to fetch wallet data"
+          walletResult.error || "Failed to fetch wallet data"
         );
       }
 
-      setWalletData(
-        walletResult
-      );
-
-      setTransactions(
-        walletResult.transactions ||
-          []
-      );
+      setWalletData(walletResult);
+      setTransactions(walletResult.transactions || []);
     } catch (error) {
-      console.error(
-        "Wallet analysis error:",
-        error
-      );
+      console.error("Wallet analysis error:", error);
 
       setWalletError(
-        error.message ||
-          "Failed to analyze wallet"
+        error.message || "Failed to analyze wallet"
       );
     } finally {
       setWalletLoading(false);
     }
   };
 
-  // =====================================================
-  // ASK AI
-  // =====================================================
-
+  // Ask AI
   const askAI = async () => {
     if (!message.trim()) {
       return;
@@ -180,910 +105,767 @@ export default function Home() {
     setResponse("");
 
     try {
-      const res =
-        await fetch(
-          "/api/chat",
-          {
-            method: "POST",
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: message.trim(),
+          walletData,
+        }),
+      });
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              message:
-                message.trim(),
-
-              walletData,
-            }),
-          }
-        );
-
-      const data =
-        await res.json();
+      const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(
-          data.error ||
-            "Something went wrong"
-        );
+        throw new Error(data.error || "Something went wrong");
       }
 
-      setResponse(
-        data.response || ""
-      );
+      setResponse(data.response || "");
     } catch (error) {
-      console.error(
-        "AI error:",
-        error
-      );
+      console.error("AI error:", error);
 
       setResponse(
-        `Error: ${
-          error.message ||
-          "Could not get AI response"
-        }`
+        `Error: ${error.message || "Could not get AI response"}`
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // =====================================================
-  // ENTER KEY FOR CHAT
-  // =====================================================
-
+  // Enter to send; Shift + Enter for a new line
   const handleChatKeyDown = (e) => {
-    if (
-      e.key === "Enter" &&
-      !e.shiftKey
-    ) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
 
-      if (
-        !loading &&
-        walletData &&
-        message.trim()
-      ) {
+      if (!loading && walletData && message.trim()) {
         askAI();
       }
     }
   };
 
-  // =====================================================
-  // FORMAT DATE
-  // =====================================================
-
-  const formatDate = (
-    timestamp
-  ) => {
+  // Format transaction date
+  const formatDate = (timestamp) => {
     if (!timestamp) {
       return "Unknown";
     }
 
-    const date =
-      new Date(timestamp);
+    const date = new Date(timestamp);
 
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
+    if (Number.isNaN(date.getTime())) {
       return "Unknown";
     }
 
     return date.toLocaleString();
   };
 
-  // =====================================================
-  // SHORT ADDRESS
-  // =====================================================
-
-  const shortenAddress = (
-    address
-  ) => {
+  // Shorten wallet address
+  const shortenAddress = (address) => {
     if (!address) {
       return "Unknown";
     }
 
-    return `${address.slice(
-      0,
-      6
-    )}...${address.slice(-4)}`;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // =====================================================
-  // FORMAT AMOUNT
-  // =====================================================
-
-  const formatAmount = (
-    value
-  ) => {
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
-    ) {
+  // Format token and transaction amounts
+  const formatAmount = (value) => {
+    if (value === null || value === undefined || value === "") {
       return "0";
     }
 
-    const number =
-      Number(value);
+    const number = Number(value);
 
-    if (
-      Number.isNaN(number)
-    ) {
+    if (Number.isNaN(number)) {
       return String(value);
     }
 
-    return number.toLocaleString(
-      undefined,
-      {
-        maximumFractionDigits: 6,
-      }
-    );
+    return number.toLocaleString(undefined, {
+      maximumFractionDigits: 6,
+    });
   };
 
   return (
-    <main className="min-h-screen bg-black text-white p-6">
-      <div className="max-w-5xl mx-auto py-16">
+    <main className="min-h-screen bg-[#0A0F0D] text-slate-100 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto py-8 md:py-12">
+        {/* Dashboard header */}
+        <header className="relative overflow-hidden mb-8 rounded-3xl border border-emerald-900/50 bg-gradient-to-br from-[#17251D] via-[#111815] to-[#0D1210] p-7 md:p-10 shadow-2xl shadow-black/30">
+          <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
 
-        {/* ================================================= */}
-        {/* HEADER */}
-        {/* ================================================= */}
+          <div className="relative">
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-800/60 bg-emerald-950/40 px-3 py-1.5 mb-5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-xs font-semibold tracking-widest text-emerald-300">
+                BLOCKCHAIN INTELLIGENCE
+              </span>
+            </div>
 
-        <div className="mb-12">
-          <p className="text-sm text-gray-500 mb-3">
-            AI-POWERED BLOCKCHAIN INTELLIGENCE
-          </p>
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white">
+              AI Wallet Analyst
+            </h1>
 
-          <h1 className="text-5xl font-bold tracking-tight">
-            AI Wallet Analyst
-          </h1>
+            <p className="text-slate-400 mt-4 max-w-2xl text-base md:text-lg leading-7">
+              Analyze blockchain wallets, explore on-chain activity,
+              understand transaction behavior, and investigate wallet
+              data with AI.
+            </p>
 
-          <p className="text-gray-400 mt-4 max-w-2xl">
-            Analyze blockchain wallets,
-            understand their activity,
-            behavior, transactions and
-            risk using AI.
-          </p>
-        </div>
+            <div className="flex flex-wrap items-center gap-3 mt-7">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-[#34443A] bg-[#0A0F0D]/70 px-3 py-2 text-sm text-slate-300">
+                <span className="text-emerald-400">◆</span>
+                On-chain analytics
+              </span>
 
-        {/* ================================================= */}
-        {/* WALLET INPUT */}
-        {/* ================================================= */}
+              <span className="inline-flex items-center gap-2 rounded-lg border border-[#34443A] bg-[#0A0F0D]/70 px-3 py-2 text-sm text-slate-300">
+                <span className="text-emerald-400">✦</span>
+                AI-powered insights
+              </span>
+            </div>
+          </div>
+        </header>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        {/* Wallet search */}
+        <section className="rounded-2xl border border-[#29372F] bg-[#121916] p-5 md:p-7 shadow-xl shadow-black/20">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-900/60 bg-emerald-950/40 text-emerald-400 text-xl">
+              ⌕
+            </div>
 
-          <label className="block text-sm text-gray-400 mb-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">
+                Analyze a Wallet
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Enter an Ethereum-compatible wallet address
+              </p>
+            </div>
+          </div>
+
+          <label
+            htmlFor="wallet-address"
+            className="block text-sm font-medium text-slate-300 mb-3"
+          >
             Wallet Address
           </label>
 
           <input
+            id="wallet-address"
             type="text"
             value={walletAddress}
-            onChange={
-              handleWalletChange
-            }
+            onChange={handleWalletChange}
             placeholder="0x..."
-            className="w-full bg-black border border-gray-700 rounded-xl px-4 py-4 text-white outline-none focus:border-gray-400"
+            autoComplete="off"
+            spellCheck={false}
+            className="w-full bg-[#0A0F0D] border border-[#34443A] rounded-xl px-4 py-4 text-white placeholder:text-slate-600 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/10 font-mono text-sm"
           />
 
-          {walletValid ===
-            true && (
-            <p className="text-green-400 text-sm mt-3">
+          {walletValid === true && (
+            <p className="text-emerald-400 text-sm mt-3">
               ✓ Valid EVM wallet address
             </p>
           )}
 
-          {walletValid ===
-            false && (
-            <p className="text-red-400 text-sm mt-3">
+          {walletValid === false && (
+            <p className="text-rose-400 text-sm mt-3">
               ✕ Invalid wallet address
             </p>
           )}
 
-          <button
-            onClick={
-              analyzeWallet
-            }
-            disabled={
-              !walletValid ||
-              walletLoading
-            }
-            className="mt-5 px-6 py-3 rounded-xl bg-white text-black font-medium disabled:opacity-40"
-          >
-            {walletLoading
-              ? "Analyzing..."
-              : "Analyze Wallet"}
-          </button>
-        </div>
-
-        {/* ================================================= */}
-        {/* WALLET ERROR */}
-        {/* ================================================= */}
-
-        {walletError && (
-          <div className="mt-6 rounded-xl border border-red-900 bg-red-950/30 p-4">
-            <p className="text-red-400">
-              {walletError}
-            </p>
-          </div>
-        )}
-
-        {/* ================================================= */}
-        {/* WALLET SUMMARY */}
-        {/* ================================================= */}
-
-        {walletData && (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                Network
-              </p>
-
-              <p className="text-xl font-semibold mt-2">
-                {walletData.network}
-              </p>
-            </div>
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                ETH Balance
-              </p>
-
-              <p className="text-xl font-semibold mt-2">
-                {walletData.balanceEth} ETH
-              </p>
-            </div>
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                Wallet
-              </p>
-
-              <p className="text-sm font-mono mt-2 break-all">
-                {walletData.address}
-              </p>
-            </div>
-
-          </div>
-        )}
-
-        {/* ================================================= */}
-        {/* WALLET STATS */}
-        {/* ================================================= */}
-
-        {walletData?.stats && (
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                Transactions
-              </p>
-
-              <p className="text-xl font-semibold mt-2">
-                {
-                  walletData.stats
-                    .transactionCount
-                }
-              </p>
-            </div>
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                Incoming
-              </p>
-
-              <p className="text-xl font-semibold mt-2 text-green-400">
-                {
-                  walletData.stats
-                    .incomingTransactions
-                }
-              </p>
-            </div>
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                Outgoing
-              </p>
-
-              <p className="text-xl font-semibold mt-2 text-red-400">
-                {
-                  walletData.stats
-                    .outgoingTransactions
-                }
-              </p>
-            </div>
-
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <p className="text-gray-500 text-sm">
-                ETH Transfers
-              </p>
-
-              <p className="text-xl font-semibold mt-2">
-                {
-                  walletData.stats
-                    .ethTransactionCount
-                }
-              </p>
-            </div>
-
-          </div>
-        )}
-
-        {/* ================================================= */}
-        {/* TOKEN HOLDINGS */}
-        {/* ================================================= */}
-
-        {walletData?.tokens &&
-          walletData.tokens.length >
-            0 && (
-          <div className="mt-6 bg-gray-900 border border-gray-800 rounded-2xl p-6">
-
-            <div className="flex items-center justify-between mb-6">
-
-              <div>
-                <h2 className="text-2xl font-semibold">
-                  Token Holdings
-                </h2>
-
-                <p className="text-gray-500 mt-1">
-                  ERC-20 tokens held by
-                  this wallet
-                </p>
-              </div>
-
-              <p className="text-gray-500">
-                {
-                  walletData.tokens
-                    .length
-                }{" "}
-                tokens
-              </p>
-
-            </div>
-
-            <div className="space-y-4">
-
-              {(showAllTokens
-                ? walletData.tokens
-                : walletData.tokens.slice(
-                    0,
-                    5
-                  )
-              ).map(
-                (
-                  token,
-                  index
-                ) => (
-                  <div
-                    key={
-                      token.contractAddress ||
-                      token.address ||
-                      index
-                    }
-                    className="bg-black border border-gray-800 rounded-xl p-5 flex items-center justify-between"
-                  >
-
-                    <div>
-                      <p className="text-lg font-medium">
-                        {
-                          token.symbol ||
-                          "Unknown"
-                        }
-                      </p>
-
-                      <p className="text-gray-500 text-sm mt-1">
-                        {
-                          token.name ||
-                          "Unknown Token"
-                        }
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-
-                      <p className="text-lg">
-                        {
-                          formatAmount(
-                            token.balance
-                          )
-                        }
-                      </p>
-
-                      <p className="text-gray-500 text-sm">
-                        Token Balance
-                      </p>
-
-                    </div>
-
-                  </div>
-                )
+          <div className="flex flex-wrap items-center gap-4 mt-5">
+            <button
+              onClick={analyzeWallet}
+              disabled={!walletValid || walletLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-[#07110B] shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {walletLoading && (
+                <span className="h-4 w-4 rounded-full border-2 border-[#07110B]/30 border-t-[#07110B] animate-spin" />
               )}
 
-            </div>
+              {walletLoading ? "Analyzing..." : "Analyze Wallet"}
 
-            {walletData.tokens.length >
-              5 && (
-              <div className="flex justify-center mt-6">
+              {!walletLoading && <span aria-hidden="true">→</span>}
+            </button>
 
-                <button
-                  onClick={() =>
-                    setShowAllTokens(
-                      !showAllTokens
-                    )
-                  }
-                  className="px-5 py-2.5 rounded-xl border border-gray-700 bg-black text-gray-300 hover:border-gray-500 hover:text-white transition"
-                >
-                  {showAllTokens
-                    ? "Show Less"
-                    : `Show More (${walletData.tokens.length - 5})`}
-                </button>
+            <p className="text-xs text-slate-500">
+              Wallet data will appear after analysis.
+            </p>
+          </div>
+        </section>
 
-              </div>
-            )}
-
+        {/* Wallet error */}
+        {walletError && (
+          <div
+            role="alert"
+            className="mt-5 rounded-xl border border-rose-900/70 bg-rose-950/30 p-4"
+          >
+            <p className="text-rose-400">{walletError}</p>
           </div>
         )}
 
-        {/* ================================================= */}
-        {/* TRANSACTION ACTIVITY */}
-        {/* ================================================= */}
-
+        {/* Wallet overview */}
         {walletData && (
-          <div className="mt-6 bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <>
+            <section className="mt-8">
+              <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-widest text-emerald-500 uppercase">
+                    Overview
+                  </p>
+                  <h2 className="text-2xl font-semibold text-white mt-1">
+                    Wallet Summary
+                  </h2>
+                </div>
 
-            <div className="flex items-center justify-between mb-6">
-
-              <div>
-                <h2 className="text-2xl font-semibold">
-                  Transaction Activity
-                </h2>
-
-                <p className="text-gray-500 mt-1">
-                  Recent on-chain activity
-                  available from the
-                  wallet data
-                </p>
+                <span className="rounded-full border border-emerald-900/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-300">
+                  Analysis complete
+                </span>
               </div>
 
-              <p className="text-gray-500">
-                {
-                  transactions.length
-                }{" "}
-                transactions
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-2xl border border-[#29372F] bg-[#121916] p-5 transition hover:border-emerald-800/70">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-400">Network</p>
+                    <span className="text-emerald-400">◈</span>
+                  </div>
 
-            </div>
+                  <p className="text-xl md:text-2xl font-semibold text-white mt-4 break-words">
+                    {walletData.network}
+                  </p>
 
-            {transactionError && (
-              <div className="rounded-xl border border-red-900 bg-red-950/30 p-4">
-                <p className="text-red-400">
-                  {
-                    transactionError
-                  }
-                </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Connected blockchain
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[#29372F] bg-[#121916] p-5 transition hover:border-emerald-800/70">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-400">ETH Balance</p>
+                    <span className="text-emerald-400">Ξ</span>
+                  </div>
+
+                  <p className="text-xl md:text-2xl font-semibold text-white mt-4 break-words">
+                    {walletData.balanceEth} ETH
+                  </p>
+
+                  <p className="text-xs text-slate-500 mt-2">
+                    Native asset balance
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[#29372F] bg-[#121916] p-5 transition hover:border-emerald-800/70">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-400">Wallet Address</p>
+                    <span className="text-emerald-400">⌘</span>
+                  </div>
+
+                  <p className="text-sm font-mono text-emerald-300 mt-4 break-all">
+                    {walletData.address}
+                  </p>
+
+                  <p className="text-xs text-slate-500 mt-2">
+                    Analyzed account
+                  </p>
+                </div>
               </div>
+            </section>
+
+            {/* Wallet statistics */}
+            {walletData.stats && (
+              <section className="mt-6">
+                <div className="mb-4">
+                  <p className="text-xs font-semibold tracking-widest text-emerald-500 uppercase">
+                    Activity Metrics
+                  </p>
+                  <h2 className="text-xl font-semibold text-white mt-1">
+                    Transaction Statistics
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="rounded-2xl border border-[#29372F] bg-[#121916] p-4 md:p-5">
+                    <p className="text-sm text-slate-400">
+                      Transactions
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-white mt-3 break-words">
+                      {walletData.stats.transactionCount}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Total recorded
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-950 bg-[#121916] p-4 md:p-5">
+                    <p className="text-sm text-slate-400">
+                      Incoming
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-emerald-400 mt-3 break-words">
+                      {walletData.stats.incomingTransactions}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Received transactions
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-rose-950 bg-[#121916] p-4 md:p-5">
+                    <p className="text-sm text-slate-400">
+                      Outgoing
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-rose-400 mt-3 break-words">
+                      {walletData.stats.outgoingTransactions}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Sent transactions
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#29372F] bg-[#121916] p-4 md:p-5">
+                    <p className="text-sm text-slate-400">
+                      ETH Transfers
+                    </p>
+                    <p className="text-2xl md:text-3xl font-bold text-white mt-3 break-words">
+                      {walletData.stats.ethTransactionCount}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Native asset transfers
+                    </p>
+                  </div>
+                </div>
+              </section>
             )}
 
-            {!transactionError &&
-              transactions.length ===
-                0 && (
-                <div className="py-10 text-center">
-                  <p className="text-gray-500">
-                    No transaction
-                    activity found.
+            {/* Token holdings */}
+            {walletData.tokens && walletData.tokens.length > 0 && (
+              <section className="mt-8 rounded-2xl border border-[#29372F] bg-[#121916] p-5 md:p-7 shadow-xl shadow-black/10">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                  <div>
+                    <p className="text-xs font-semibold tracking-widest text-emerald-500 uppercase">
+                      Portfolio
+                    </p>
+                    <h2 className="text-2xl font-semibold text-white mt-1">
+                      Token Holdings
+                    </h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                      ERC-20 tokens held by this wallet
+                    </p>
+                  </div>
+
+                  <span className="rounded-lg border border-[#34443A] bg-[#0A0F0D] px-3 py-2 text-sm text-slate-300">
+                    {walletData.tokens.length} tokens
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {(showAllTokens
+                    ? walletData.tokens
+                    : walletData.tokens.slice(0, 5)
+                  ).map((token, index) => (
+                    <div
+                      key={
+                        token.contractAddress ||
+                        token.address ||
+                        index
+                      }
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-xl border border-[#26342C] bg-[#0D1310] p-4 md:p-5 transition hover:border-emerald-900/70"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-900/50 bg-emerald-950/40 text-emerald-400 font-bold">
+                          {(token.symbol || "?")
+                            .slice(0, 1)
+                            .toUpperCase()}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white break-words">
+                            {token.symbol || "Unknown"}
+                          </p>
+                          <p className="text-sm text-slate-500 mt-1 break-words">
+                            {token.name || "Unknown Token"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="sm:text-right sm:shrink-0">
+                        <p className="text-lg font-semibold text-emerald-300 break-words">
+                          {formatAmount(token.balance)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Token Balance
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {walletData.tokens.length > 5 && (
+                  <div className="flex justify-center mt-6">
+                    <button
+                      onClick={() =>
+                        setShowAllTokens(!showAllTokens)
+                      }
+                      className="rounded-xl border border-[#34443A] bg-[#0A0F0D] px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+                    >
+                      {showAllTokens
+                        ? "Show Less"
+                        : `Show More (${walletData.tokens.length - 5})`}
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Transaction activity */}
+            <section className="mt-8 rounded-2xl border border-[#29372F] bg-[#121916] p-5 md:p-7 shadow-xl shadow-black/10">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                <div>
+                  <p className="text-xs font-semibold tracking-widest text-emerald-500 uppercase">
+                    On-chain history
+                  </p>
+                  <h2 className="text-2xl font-semibold text-white mt-1">
+                    Transaction Activity
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Recent activity available from the wallet data
+                  </p>
+                </div>
+
+                <span className="rounded-lg border border-[#34443A] bg-[#0A0F0D] px-3 py-2 text-sm text-slate-300">
+                  {transactions.length} transactions
+                </span>
+              </div>
+
+              {transactionError && (
+                <div className="rounded-xl border border-rose-900/70 bg-rose-950/30 p-4">
+                  <p className="text-rose-400">
+                    {transactionError}
                   </p>
                 </div>
               )}
 
-            {transactions.length >
-              0 && (
-              <>
-                <div className="space-y-3">
+              {!transactionError && transactions.length === 0 && (
+                <div className="rounded-xl border border-dashed border-[#34443A] py-12 text-center">
+                  <div className="text-3xl text-slate-600 mb-3">
+                    ◷
+                  </div>
+                  <p className="text-slate-400">
+                    No transaction activity found.
+                  </p>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Transaction records will appear here when available.
+                  </p>
+                </div>
+              )}
 
-                  {(showAllTransactions
-                    ? transactions
-                    : transactions.slice(
-                        0,
-                        5
-                      )
-                  ).map(
-                    (
-                      tx,
-                      index
-                    ) => (
+              {transactions.length > 0 && (
+                <>
+                  <div className="space-y-3">
+                    {(showAllTransactions
+                      ? transactions
+                      : transactions.slice(0, 5)
+                    ).map((tx, index) => (
                       <div
                         key={`${tx.hash || "tx"}-${index}`}
-                        className="bg-black border border-gray-800 rounded-xl p-5"
+                        className="rounded-xl border border-[#26342C] bg-[#0D1310] p-4 md:p-5 transition hover:border-emerald-900/70"
                       >
-
-                        <div className="flex items-start justify-between gap-4">
-
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                           <div className="min-w-0">
-
-                            <div className="flex items-center gap-3 flex-wrap">
-
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span
-                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                  tx.direction ===
-                                  "IN"
-                                    ? "bg-green-950 text-green-400 border border-green-900"
-                                    : "bg-red-950 text-red-400 border border-red-900"
+                                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  tx.direction === "IN"
+                                    ? "border-emerald-900 bg-emerald-950/70 text-emerald-400"
+                                    : "border-rose-900 bg-rose-950/50 text-rose-400"
                                 }`}
                               >
-                                {
-                                  tx.direction
-                                }
+                                {tx.direction}
                               </span>
 
-                              <span className="text-gray-300">
-                                {
-                                  tx.asset ||
-                                  "ETH"
-                                }
+                              <span className="text-slate-200 font-medium">
+                                {tx.asset || "ETH"}
                               </span>
 
-                              <span className="text-gray-500 text-sm">
-                                {
-                                  tx.category ||
-                                  "transfer"
-                                }
+                              <span className="text-slate-500 text-sm">
+                                {tx.category || "transfer"}
                               </span>
-
                             </div>
 
                             <div className="mt-4 space-y-2 text-sm">
-
-                              <p className="text-gray-500">
+                              <p className="text-slate-500 break-all">
                                 From:{" "}
-                                <span className="text-gray-300 font-mono">
-                                  {shortenAddress(
-                                    tx.from
-                                  )}
+                                <span className="text-slate-300 font-mono">
+                                  {shortenAddress(tx.from)}
                                 </span>
                               </p>
 
-                              <p className="text-gray-500">
+                              <p className="text-slate-500 break-all">
                                 To:{" "}
-                                <span className="text-gray-300 font-mono">
-                                  {shortenAddress(
-                                    tx.to
-                                  )}
+                                <span className="text-slate-300 font-mono">
+                                  {shortenAddress(tx.to)}
                                 </span>
                               </p>
-
                             </div>
-
                           </div>
 
-                          <div className="text-right shrink-0">
-
-                            <p className="text-lg font-semibold">
-                              {
-                                formatAmount(
-                                  tx.value
-                                )
-                              }{" "}
-                              {
-                                tx.asset ||
-                                "ETH"
-                              }
+                          <div className="sm:text-right sm:shrink-0">
+                            <p className="text-base sm:text-lg font-semibold text-white break-words">
+                              {formatAmount(tx.value)}{" "}
+                              {tx.asset || "ETH"}
                             </p>
 
-                            <p className="text-gray-500 text-sm mt-1">
-                              {
-                                formatDate(
-                                  tx.timestamp
-                                )
-                              }
+                            <p className="text-slate-500 text-sm mt-1">
+                              {formatDate(tx.timestamp)}
                             </p>
-
                           </div>
-
                         </div>
 
                         {tx.hash && (
-                          <div className="mt-4 pt-4 border-t border-gray-800">
-
-                            <p className="text-gray-600 text-xs font-mono break-all">
-                              TX:{" "}
-                              {
-                                tx.hash
-                              }
+                          <div className="mt-4 pt-4 border-t border-[#26342C]">
+                            <p className="text-slate-500 text-xs font-mono break-all">
+                              TX: {tx.hash}
                             </p>
-
                           </div>
                         )}
-
                       </div>
-                    )
-                  )}
-
-                </div>
-
-                {transactions.length >
-                  5 && (
-                  <div className="flex justify-center mt-6">
-
-                    <button
-                      onClick={() =>
-                        setShowAllTransactions(
-                          !showAllTransactions
-                        )
-                      }
-                      className="px-5 py-2.5 rounded-xl border border-gray-700 bg-black text-gray-300 hover:border-gray-500 hover:text-white transition"
-                    >
-                      {showAllTransactions
-                        ? "Show Less"
-                        : `Show More (${transactions.length - 5})`}
-                    </button>
-
+                    ))}
                   </div>
-                )}
 
-              </>
-            )}
+                  {transactions.length > 5 && (
+                    <div className="flex justify-center mt-6">
+                      <button
+                        onClick={() =>
+                          setShowAllTransactions(
+                            !showAllTransactions
+                          )
+                        }
+                        className="rounded-xl border border-[#34443A] bg-[#0A0F0D] px-5 py-2.5 text-sm font-medium text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+                      >
+                        {showAllTransactions
+                          ? "Show Less"
+                          : `Show More (${transactions.length - 5})`}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
 
-          </div>
-        )}
-
-        {/* ================================================= */}
-        {/* ANALYSIS SECTIONS */}
-        {/* ================================================= */}
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
-
-          {[
-            "Portfolio",
-            "Activity",
-            "Behavior",
-            "Counterparties",
-            "AI Analysis",
-            "Risk",
-          ].map(
-            (item) => (
-              <div
-                key={item}
-                className="bg-gray-900 border border-gray-800 rounded-xl p-5"
-              >
-                <p className="text-gray-300">
-                  {item}
+            {/* Planned analysis modules */}
+            <section className="mt-8">
+              <div className="mb-4">
+                <p className="text-xs font-semibold tracking-widest text-emerald-500 uppercase">
+                  Intelligence modules
                 </p>
-
-                <p className="text-xs text-gray-600 mt-2">
-                  Coming soon
+                <h2 className="text-2xl font-semibold text-white mt-1">
+                  Explore Wallet Insights
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  Additional analysis modules planned for this project
                 </p>
               </div>
-            )
-          )}
 
-        </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  {
+                    title: "Portfolio",
+                    description: "Asset allocation and portfolio insights",
+                    icon: "◈",
+                  },
+                  {
+                    title: "Activity",
+                    description: "Wallet transaction activity patterns",
+                    icon: "↗",
+                  },
+                  {
+                    title: "Behavior",
+                    description: "Understand wallet interaction patterns",
+                    icon: "⌘",
+                  },
+                  {
+                    title: "Counterparties",
+                    description: "Explore connected wallet addresses",
+                    icon: "◎",
+                  },
+                  {
+                    title: "AI Analysis",
+                    description: "AI-assisted interpretation of wallet data",
+                    icon: "✦",
+                  },
+                  {
+                    title: "Risk",
+                    description: "Future wallet risk analysis tools",
+                    icon: "△",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="group rounded-2xl border border-[#29372F] bg-[#121916] p-5 transition hover:-translate-y-0.5 hover:border-emerald-800/80"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-emerald-900/50 bg-emerald-950/40 text-xl text-emerald-400">
+                        {item.icon}
+                      </div>
 
-        {/* ================================================= */}
-        {/* WHATSAPP STYLE AI CHAT */}
-        {/* ================================================= */}
+                      <span className="rounded-full border border-[#34443A] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        Planned
+                      </span>
+                    </div>
 
-        {walletData && (
-          <div className="mt-12">
+                    <h3 className="text-lg font-semibold text-white mt-5">
+                      {item.title}
+                    </h3>
 
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold">
-                AI Analyst
-              </h2>
+                    <p className="text-sm leading-6 text-slate-500 mt-2">
+                      {item.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
 
-              <p className="text-gray-500 mt-1">
-                Ask anything about this
-                wallet.
-              </p>
-            </div>
-
-            <div className="rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
-
-              {/* CHAT HEADER */}
-
-              <div className="px-5 py-4 bg-gray-900 border-b border-gray-800 flex items-center gap-3">
-
-                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg">
-                  AI
-                </div>
-
-                <div>
-                  <p className="font-semibold">
-                    AI Wallet Analyst
-                  </p>
-
-                  <p className="text-xs text-green-400">
-                    Online
-                  </p>
-                </div>
-
+            {/* Existing AI chatbox — redesign later */}
+            <section className="mt-12">
+              <div className="mb-4">
+                <h2 className="text-2xl font-semibold">
+                  AI Analyst
+                </h2>
+                <p className="text-gray-500 mt-1">
+                  Ask anything about this wallet.
+                </p>
               </div>
 
-              {/* CHAT AREA */}
+              <div className="rounded-2xl overflow-hidden border border-gray-800 bg-gray-950">
+                {/* Chat header */}
+                <div className="px-5 py-4 bg-gray-900 border-b border-gray-800 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg">
+                    AI
+                  </div>
 
-              <div className="min-h-[300px] max-h-[500px] overflow-y-auto p-5 space-y-5 bg-black">
+                  <div>
+                    <p className="font-semibold">
+                      AI Wallet Analyst
+                    </p>
+                    <p className="text-xs text-green-400">
+                      Online
+                    </p>
+                  </div>
+                </div>
 
-                {/* EMPTY CHAT */}
-
-                {!message &&
-                  !response &&
-                  !loading && (
+                {/* Chat area */}
+                <div className="min-h-[300px] max-h-[500px] overflow-y-auto p-5 space-y-5 bg-black">
+                  {!message && !response && !loading && (
                     <div className="h-[260px] flex items-center justify-center text-center">
-
                       <div>
                         <div className="w-14 h-14 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mx-auto mb-4">
                           🤖
                         </div>
 
                         <p className="text-gray-300 font-medium">
-                          Ask the AI about
-                          this wallet
+                          Ask the AI about this wallet
                         </p>
 
                         <p className="text-gray-600 text-sm mt-2">
-                          Try asking about
-                          balances,
-                          transactions or
-                          token activity.
+                          Try asking about balances, transactions or token activity.
                         </p>
                       </div>
-
                     </div>
                   )}
 
-                {/* USER MESSAGE */}
-
-                {message && (
-                  <div className="flex justify-end">
-
-                    <div className="max-w-[80%]">
-
-                      <div className="bg-white text-black rounded-2xl rounded-br-md px-4 py-3">
-
-                        <p className="whitespace-pre-wrap leading-6">
-                          {message}
-                        </p>
-
-                      </div>
-
-                      <p className="text-[11px] text-gray-600 text-right mt-1">
-                        You
-                      </p>
-
-                    </div>
-
-                  </div>
-                )}
-
-                {/* AI LOADING */}
-
-                {loading && (
-                  <div className="flex justify-start">
-
-                    <div className="max-w-[80%]">
-
-                      <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
-
-                        <div className="flex items-center gap-2">
-
-                          <span className="text-gray-400 text-sm">
-                            Thinking
-                          </span>
-
-                          <span className="flex gap-1">
-
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
-
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
-                              style={{
-                                animationDelay:
-                                  "150ms",
-                              }}
-                            />
-
-                            <span
-                              className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
-                              style={{
-                                animationDelay:
-                                  "300ms",
-                              }}
-                            />
-
-                          </span>
-
+                  {message && (
+                    <div className="flex justify-end">
+                      <div className="max-w-[80%]">
+                        <div className="bg-white text-black rounded-2xl rounded-br-md px-4 py-3">
+                          <p className="whitespace-pre-wrap leading-6">
+                            {message}
+                          </p>
                         </div>
 
+                        <p className="text-[11px] text-gray-600 text-right mt-1">
+                          You
+                        </p>
                       </div>
-
-                      <p className="text-[11px] text-gray-600 mt-1">
-                        AI
-                      </p>
-
                     </div>
+                  )}
 
-                  </div>
-                )}
-
-                {/* AI RESPONSE */}
-
-                {response &&
-                  !loading && (
+                  {loading && (
                     <div className="flex justify-start">
-
                       <div className="max-w-[80%]">
-
                         <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 text-sm">
+                              Thinking
+                            </span>
 
+                            <span className="flex gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
+
+                              <span
+                                className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
+                                style={{ animationDelay: "150ms" }}
+                              />
+
+                              <span
+                                className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
+                                style={{ animationDelay: "300ms" }}
+                              />
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-gray-600 mt-1">
+                          AI
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {response && !loading && (
+                    <div className="flex justify-start">
+                      <div className="max-w-[80%]">
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
                           <p className="whitespace-pre-wrap text-gray-300 leading-7">
                             {response}
                           </p>
-
                         </div>
 
                         <p className="text-[11px] text-gray-600 mt-1">
                           AI Wallet Analyst
                         </p>
-
                       </div>
-
                     </div>
                   )}
-
-              </div>
-
-              {/* CHAT INPUT */}
-
-              <div className="p-4 bg-gray-900 border-t border-gray-800">
-
-                <div className="flex items-end gap-3">
-
-                  <textarea
-                    value={message}
-                    onChange={(e) =>
-                      setMessage(
-                        e.target.value
-                      )
-                    }
-                    onKeyDown={
-                      handleChatKeyDown
-                    }
-                    disabled={loading}
-                    rows={1}
-                    placeholder="Type a message..."
-                    className="flex-1 resize-none bg-black border border-gray-700 rounded-2xl px-4 py-3 text-white outline-none focus:border-gray-400 disabled:opacity-50"
-                  />
-
-                  <button
-                    onClick={askAI}
-                    disabled={
-                      loading ||
-                      !message.trim()
-                    }
-                    className="w-12 h-12 shrink-0 rounded-full bg-white text-black flex items-center justify-center font-bold text-lg disabled:opacity-40 hover:bg-gray-200 transition"
-                    aria-label="Send message"
-                  >
-                    ↑
-                  </button>
-
                 </div>
 
-                <p className="text-[11px] text-gray-600 mt-2 px-1">
-                  Enter to send · Shift + Enter
-                  for a new line
-                </p>
+                {/* Chat input */}
+                <div className="p-4 bg-gray-900 border-t border-gray-800">
+                  <div className="flex items-end gap-3">
+                    <textarea
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      onKeyDown={handleChatKeyDown}
+                      disabled={loading}
+                      rows={1}
+                      placeholder="Type a message..."
+                      className="flex-1 resize-none bg-black border border-gray-700 rounded-2xl px-4 py-3 text-white outline-none focus:border-gray-400 disabled:opacity-50"
+                    />
 
+                    <button
+                      onClick={askAI}
+                      disabled={loading || !message.trim()}
+                      className="w-12 h-12 shrink-0 rounded-full bg-white text-black flex items-center justify-center font-bold text-lg disabled:opacity-40 hover:bg-gray-200 transition"
+                      aria-label="Send message"
+                    >
+                      ↑
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-gray-600 mt-2 px-1">
+                    Enter to send · Shift + Enter for a new line
+                  </p>
+                </div>
               </div>
-
-            </div>
-
-          </div>
+            </section>
+          </>
         )}
-
       </div>
     </main>
   );

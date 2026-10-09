@@ -14,12 +14,15 @@ export default function Home() {
   const [showAllTokens, setShowAllTokens] = useState(false);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
 
-  // Validate Ethereum wallet address
+  // Store all messages for the current page session.
+  const [chatHistory, setChatHistory] = useState([]);
+
+  // Validate Ethereum wallet address.
   const validateWallet = (address) => {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   };
 
-  // Handle wallet input
+  // Handle wallet input.
   const handleWalletChange = (e) => {
     const value = e.target.value.trim();
 
@@ -27,6 +30,8 @@ export default function Home() {
     setWalletData(null);
     setTransactions([]);
     setResponse("");
+    setChatHistory([]);
+    setMessage("");
     setWalletError("");
     setTransactionError("");
     setShowAllTokens(false);
@@ -40,10 +45,12 @@ export default function Home() {
     setWalletValid(validateWallet(value));
   };
 
-  // Analyze wallet
+  // Analyze wallet.
   const analyzeWallet = async () => {
     if (!walletValid) {
-      setWalletError("Please enter a valid Ethereum wallet address.");
+      setWalletError(
+        "Please enter a valid Ethereum wallet address."
+      );
       return;
     }
 
@@ -53,6 +60,8 @@ export default function Home() {
     setWalletData(null);
     setTransactions([]);
     setResponse("");
+    setChatHistory([]);
+    setMessage("");
     setShowAllTokens(false);
     setShowAllTransactions(false);
 
@@ -88,19 +97,44 @@ export default function Home() {
     }
   };
 
-  // Ask AI
+  // Ask AI and retain every question-answer pair.
   const askAI = async () => {
-    if (!message.trim()) {
+    const question = message.trim();
+
+    if (!question || loading) {
       return;
     }
+
+    const chatId = `${Date.now()}-${Math.random()}`;
 
     if (!walletData) {
-      setResponse(
-        "Please analyze a wallet first so the AI can analyze its on-chain data."
-      );
+      setChatHistory((previous) => [
+        ...previous,
+        {
+          id: chatId,
+          question,
+          answer:
+            "Please analyze a wallet first so the AI can analyze its on-chain data.",
+          loading: false,
+        },
+      ]);
+
+      setMessage("");
       return;
     }
 
+    // Add the new question immediately.
+    setChatHistory((previous) => [
+      ...previous,
+      {
+        id: chatId,
+        question,
+        answer: "",
+        loading: true,
+      },
+    ]);
+
+    setMessage("");
     setLoading(true);
     setResponse("");
 
@@ -111,7 +145,7 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: message.trim(),
+          message: question,
           walletData,
         }),
       });
@@ -119,33 +153,64 @@ export default function Home() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Something went wrong");
+        throw new Error(
+          data.error || "Something went wrong"
+        );
       }
 
-      setResponse(data.response || "");
+      const answer = data.response || "No response received.";
+
+      setResponse(answer);
+
+      // Update only this question's answer.
+      setChatHistory((previous) =>
+        previous.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                answer,
+                loading: false,
+              }
+            : chat
+        )
+      );
     } catch (error) {
       console.error("AI error:", error);
 
-      setResponse(
-        `Error: ${error.message || "Could not get AI response"}`
+      const errorMessage = `Error: ${
+        error.message || "Could not get AI response"
+      }`;
+
+      setResponse(errorMessage);
+
+      setChatHistory((previous) =>
+        previous.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                answer: errorMessage,
+                loading: false,
+              }
+            : chat
+        )
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // Enter to send; Shift + Enter for a new line
+  // Enter to send; Shift + Enter for a new line.
   const handleChatKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
 
-      if (!loading && walletData && message.trim()) {
+      if (!loading && message.trim()) {
         askAI();
       }
     }
   };
 
-  // Format transaction date
+  // Format transaction date.
   const formatDate = (timestamp) => {
     if (!timestamp) {
       return "Unknown";
@@ -160,7 +225,7 @@ export default function Home() {
     return date.toLocaleString();
   };
 
-  // Shorten wallet address
+  // Shorten wallet address.
   const shortenAddress = (address) => {
     if (!address) {
       return "Unknown";
@@ -169,9 +234,13 @@ export default function Home() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Format token and transaction amounts
+  // Format token and transaction amounts.
   const formatAmount = (value) => {
-    if (value === null || value === undefined || value === "") {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
       return "0";
     }
 
@@ -722,7 +791,7 @@ export default function Home() {
               </div>
             </section>
 
-            {/* Existing AI chatbox — redesign later */}
+            {/* AI chat with complete conversation history */}
             <section className="mt-12">
               <div className="mb-4">
                 <h2 className="text-2xl font-semibold">
@@ -750,9 +819,9 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Chat area */}
-                <div className="min-h-[300px] max-h-[500px] overflow-y-auto p-5 space-y-5 bg-black">
-                  {!message && !response && !loading && (
+                {/* Conversation history */}
+                <div className="min-h-[300px] max-h-[600px] overflow-y-auto p-5 space-y-6 bg-black">
+                  {chatHistory.length === 0 && (
                     <div className="h-[260px] flex items-center justify-center text-center">
                       <div>
                         <div className="w-14 h-14 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mx-auto mb-4">
@@ -764,75 +833,71 @@ export default function Home() {
                         </p>
 
                         <p className="text-gray-600 text-sm mt-2">
-                          Try asking about balances, transactions or token activity.
+                          Your questions and answers will appear here.
                         </p>
                       </div>
                     </div>
                   )}
 
-                  {message && (
-                    <div className="flex justify-end">
-                      <div className="max-w-[80%]">
-                        <div className="bg-white text-black rounded-2xl rounded-br-md px-4 py-3">
-                          <p className="whitespace-pre-wrap leading-6">
-                            {message}
-                          </p>
-                        </div>
-
-                        <p className="text-[11px] text-gray-600 text-right mt-1">
-                          You
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {loading && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[80%]">
-                        <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-400 text-sm">
-                              Thinking
-                            </span>
-
-                            <span className="flex gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
-
-                              <span
-                                className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
-                                style={{ animationDelay: "150ms" }}
-                              />
-
-                              <span
-                                className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
-                                style={{ animationDelay: "300ms" }}
-                              />
-                            </span>
+                  {chatHistory.map((chat) => (
+                    <div key={chat.id} className="space-y-4">
+                      {/* User question */}
+                      <div className="flex justify-end">
+                        <div className="max-w-[85%]">
+                          <div className="bg-white text-black rounded-2xl rounded-br-md px-4 py-3">
+                            <p className="whitespace-pre-wrap leading-6">
+                              {chat.question}
+                            </p>
                           </div>
-                        </div>
 
-                        <p className="text-[11px] text-gray-600 mt-1">
-                          AI
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {response && !loading && (
-                    <div className="flex justify-start">
-                      <div className="max-w-[80%]">
-                        <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
-                          <p className="whitespace-pre-wrap text-gray-300 leading-7">
-                            {response}
+                          <p className="text-[11px] text-gray-600 text-right mt-1">
+                            You
                           </p>
                         </div>
+                      </div>
 
-                        <p className="text-[11px] text-gray-600 mt-1">
-                          AI Wallet Analyst
-                        </p>
+                      {/* AI answer */}
+                      <div className="flex justify-start">
+                        <div className="max-w-[90%]">
+                          <div className="bg-gray-900 border border-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
+                            {chat.loading ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400 text-sm">
+                                  Thinking
+                                </span>
+
+                                <span className="flex gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" />
+
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
+                                    style={{
+                                      animationDelay: "150ms",
+                                    }}
+                                  />
+
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce"
+                                    style={{
+                                      animationDelay: "300ms",
+                                    }}
+                                  />
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="whitespace-pre-wrap text-gray-300 leading-7">
+                                {chat.answer}
+                              </p>
+                            )}
+                          </div>
+
+                          <p className="text-[11px] text-gray-600 mt-1">
+                            AI Wallet Analyst
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
 
                 {/* Chat input */}
